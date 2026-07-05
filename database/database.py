@@ -90,7 +90,7 @@ class DatabaseManager:
                 );
             """)
 
-            # Bảng Nhiệm vụ hàng ngày (Daily Missions)
+            # Bảng Nhiệm vụ hàng ngày (Daily Missions) - không FK
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS daily_missions (
                     user_id INTEGER PRIMARY KEY,
@@ -101,6 +101,31 @@ class DatabaseManager:
                     free_rolls INTEGER DEFAULT 0
                 );
             """)
+            # Xóa FK cũ nếu có (cho upgrade từ version trước)
+            await db.execute("PRAGMA foreign_keys = OFF;")
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='daily_missions_old'"
+            )
+            exists = await cursor.fetchone()
+            if not exists:
+                # Lần đầu chạy bản này: rename + recreate không FK
+                await db.execute("ALTER TABLE daily_missions RENAME TO daily_missions_old;")
+                await db.execute("""
+                    CREATE TABLE daily_missions (
+                        user_id INTEGER PRIMARY KEY,
+                        chat_count INTEGER DEFAULT 0,
+                        roll_count INTEGER DEFAULT 0,
+                        voice_seconds INTEGER DEFAULT 0,
+                        date TEXT NOT NULL,
+                        free_rolls INTEGER DEFAULT 0
+                    );
+                """)
+                await db.execute(
+                    "INSERT INTO daily_missions (user_id, chat_count, roll_count, voice_seconds, date, free_rolls) "
+                    "SELECT user_id, chat_count, roll_count, voice_seconds, date, free_rolls FROM daily_missions_old;"
+                )
+                await db.execute("DROP TABLE daily_missions_old;")
+            await db.execute("PRAGMA foreign_keys = ON;")
             await db.commit()
 
     async def connect(self) -> _ConnectionContext:

@@ -17,8 +17,17 @@ class RNGEngine:
         return roles[0] # Fallback an toàn về Common
 
     def roll_multi(self, lucky_multiplier: int, count: int = 3) -> list[dict]:
-        """Quay nhiều lần, mỗi lần trả về 1 role. Có thể trùng nhau."""
+        """Quay nhiều lần, bỏ qua role trùng. Trả về danh sách unique."""
         results = []
-        for _ in range(count):
-            results.append(self.roll(lucky_multiplier))
+        seen_ids = set()
+        max_attempts = count * 10  # Chống loop vô hạn nếu quá xui
+
+        attempts = 0
+        while len(results) < count and attempts < max_attempts:
+            role = self.roll(lucky_multiplier)
+            attempts += 1
+            if role["role_id"] not in seen_ids:
+                seen_ids.add(role["role_id"])
+                results.append(role)
+
         return results

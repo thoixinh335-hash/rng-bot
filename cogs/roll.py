@@ -227,5 +227,40 @@ class RollCog(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
+    @app_commands.command(name="inventory", description="Xem kho báu hiện tại - các danh hiệu đang chờ bạn chọn.")
+    async def inventory(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        user = interaction.user
+        inventory = await self._get_inventory(user.id)
+
+        if not inventory:
+            embed = discord.Embed(
+                title="📭 KHO BÁU TRỐNG",
+                description="Bạn chưa có inventory nào. Hãy dùng `/roll` để quay trước nhé!",
+                color=discord.Color.orange()
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title=f"🎒 KHO BÁU CỦA {user.name.upper()}",
+            description=f"Bạn có **{len(inventory)}** danh hiệu đang chờ chọn:\n\nDùng `/pick <số>` để chọn!\n⏰ Tự động xóa sau **3 tiếng** kể từ lúc roll.",
+            color=discord.Color.gold()
+        )
+
+        slot_emojis = ["1️⃣", "2️⃣", "3️⃣"]
+        for item in inventory:
+            role = item["role"]
+            slot = item["slot"]
+            color_hex = role.get("embed_color", "0xFFFFFF").replace("0x", "")
+            embed.add_field(
+                name=f"{slot_emojis[slot-1]} SLOT {slot}: {role['emoji']} {role['name']}",
+                value=f"```yaml\nRank: {role['rank']}/30\nTỷ lệ: 1/{role['chance']:,}\nMàu: #{color_hex}```",
+                inline=True
+            )
+
+        await interaction.followup.send(embed=embed)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(RollCog(bot))

@@ -4,6 +4,48 @@ from discord import app_commands
 from datetime import datetime, timedelta
 from services.config_service import ConfigService
 
+# ============== BUTTON VIEW CHỌN SLOT ==============
+class RollChoiceView(discord.ui.View):
+    def __init__(self, cog, user_id: int, slots: list[dict]):
+        super().__init__(timeout=3600)  # 1 giờ timeout
+        self.cog = cog
+        self.user_id = user_id
+        self.slots = slots
+        self.chosen = False
+
+        # Tạo button cho mỗi slot
+        for i, role in enumerate(slots, 1):
+            button = discord.ui.Button(
+                label=f"Slot {i}",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"pick_{i}",
+                emoji=role.get("emoji", "🎲")
+            )
+            button.callback = self._make_callback(i)
+            self.add_item(button)
+
+    def _make_callback(self, slot: int):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message("❌ Chỉ người roll mới được chọn!", ephemeral=True)
+                return
+            if self.chosen:
+                await interaction.response.send_message("⚠️ Bạn đã chọn rồi!", ephemeral=True)
+                return
+
+            self.chosen = True
+            # Disable tất cả button
+            for item in self.children:
+                item.disabled = True
+            await interaction.response.edit_message(view=self)
+            await self.cog._apply_choice(interaction, slot)
+        return callback
+
+    async def on_timeout(self):
+        # Disable hết nút khi hết giờ
+        for item in self.children:
+            item.disabled = True
+
 class RollCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -168,17 +210,12 @@ class RollCog(commands.Cog):
                 inline=True
             )
 
-        embed.set_footer(text=f"Luck hiện tại: +{player['lucky']}%  •  Dùng /pick <1-{count}> để chọn")
-        await interaction.followup.send(embed=embed)
+        embed.set_footer(text=f"Luck hiện tại: +{player['lucky']}%  •  Nhấn nút bên dưới hoặc gõ /pick <số>")
+        view = RollChoiceView(self, user.id, rolled_roles)
+        await interaction.followup.send(embed=embed, view=view)
 
-    @app_commands.command(name="pick", description="Chọn 1 danh hiệu từ inventory sau khi roll.")
-    @app_commands.describe(slot="Số slot bạn muốn chọn")
-    async def pick(self, interaction: discord.Interaction, slot: int):
-        await interaction.response.defer()
-
-        if slot < 1:
-            await interaction.followup.send("❌ Số slot phải từ **1** trở lên.", ephemeral=True)
-            return
+    async def _apply_choice(self, interaction: discord.Interaction, slot: int):
+        """Xử lý áp dụng choice - dùng cho cả button và slash command"""
         user = interaction.user
         player_service = self.bot.player_service
         role_manager = self.bot.role_manager
@@ -186,15 +223,9 @@ class RollCog(commands.Cog):
 
         inventory = await self._get_inventory(user.id)
         if not inventory:
-            embed = discord.Embed(
-                title="📭 KHO BÁU TRỐNG",
-                description="Bạn chưa có inventory nào. Hãy dùng `/roll` để quay trước nhé!",
-                color=discord.Color.orange()
-            )
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send("📭 Kho báu trống hoặc đã hết hạn.")
             return
 
-        # Tìm slot được chọn
         chosen = None
         for item in inventory:
             if item["slot"] == slot:
@@ -203,20 +234,13 @@ class RollCog(commands.Cog):
 
         if not chosen:
             slots_available = ", ".join(str(i["slot"]) for i in inventory)
-            embed = discord.Embed(
-                title="❌ SLOT KHÔNG HỢP LỆ",
-                description=f"Slot **{slot}** không có trong inventory của bạn.\nCác slot khả dụng: **{slots_available}**",
-                color=discord.Color.red()
-            )
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(f"❌ Slot {slot} không tồn tại. Có: {slots_available}")
             return
 
-        # Xóa toàn bộ inventory sau khi chọn
         async with await self.bot.db_manager.connect() as conn:
             await conn.execute("DELETE FROM roll_inventory WHERE user_id = ?", (user.id,))
             await conn.commit()
 
-        # Áp dụng role đã chọn
         chosen_role = chosen["role"]
         player = await player_service.get_player(user.id)
         is_highest = chosen_role["rank"] > player["highest_rank"]
@@ -238,7 +262,6 @@ class RollCog(commands.Cog):
         )
         await announcement_service.broadcast_roll(user, chosen_role)
 
-        # Embed kết quả
         color = int(chosen_role["embed_color"], 16)
         embed = discord.Embed(
             title="✅ ĐÃ CHỌN DANH HIỆU",
@@ -252,13 +275,22 @@ class RollCog(commands.Cog):
         if is_highest:
             embed.add_field(name="🏆 KỶ LỤC MỚI!", value="Đây là danh hiệu cao nhất bạn từng đạt được!", inline=False)
 
-        # Hiện những slot không chọn
         unpicked = [item for item in inventory if item["slot"] != slot]
         if unpicked:
             unpicked_text = ", ".join(f"{item['role']['emoji']} **{item['role']['name']}**" for item in unpicked)
-            embed.add_field(name="🗑️ ĐÃ HỦY BỎ", value=unpicked_text + "\n*Những danh hiệu này đã biến mất vĩnh viễn.*", inline=False)
+            embed.add_field(name="🗑️ ĐÃ HỦY BỎ", value=unpicked_text, inline=False)
 
         await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="pick", description="Chọn 1 danh hiệu từ inventory sau khi roll.")
+    @app_commands.describe(slot="Số slot bạn muốn chọn")
+    async def pick(self, interaction: discord.Interaction, slot: int):
+        if slot < 1:
+            await interaction.response.send_message("❌ Số slot phải từ **1** trở lên.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        await self._apply_choice(interaction, slot)
 
     @app_commands.command(name="inventory", description="Xem kho báu hiện tại - các danh hiệu đang chờ bạn chọn.")
     async def inventory(self, interaction: discord.Interaction):

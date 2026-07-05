@@ -10,9 +10,9 @@ class RollCog(commands.Cog):
         self.config_service = ConfigService()
 
     async def _cleanup_expired_inventory(self, user_id: int):
-        """Xóa inventory quá 3 tiếng của user"""
+        """Xóa inventory quá 1 tiếng của user"""
         async with await self.bot.db_manager.connect() as conn:
-            cutoff = (datetime.utcnow() - timedelta(hours=3)).isoformat()
+            cutoff = (datetime.utcnow() - timedelta(hours=1)).isoformat()
             await conn.execute(
                 "DELETE FROM roll_inventory WHERE user_id = ? AND created_at < ?",
                 (user_id, cutoff)
@@ -77,56 +77,89 @@ class RollCog(commands.Cog):
             roles_list = self.config_service.get_roles_list()
             player = await player_service.create_player(user.id, user.name, roles_list[0])
 
-        # Check cooldown (trừ bypass users)
+        # Check cooldown (trừ bypass users hoặc có free roll từ mission)
         bypass_users = self.config_service.get("bypass_users", [])
+        missions_cog = self.bot.get_cog("MissionsCog")
+        used_free_roll = False
+
         if user.id not in bypass_users:
-            is_available, remaining = cooldown_service.check_cooldown(player["last_roll"])
-            if not is_available:
-                hours = int(remaining // 3600)
-                minutes = int((remaining % 3600) // 60)
-                seconds = int(remaining % 60)
-                embed = discord.Embed(
-                    title="⏳ VÒNG QUAY ĐANG TRONG THỜI GIAN CHỜ",
-                    description=f"Bạn đã sử dụng lượt quay rồi.\n\n`⏱️` Vui lòng quay lại sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giây**",
-                    color=discord.Color.from_rgb(255, 75, 75)
-                )
-                embed.set_footer(text="Hồi chiêu mỗi 3 giờ.")
-                await interaction.followup.send(embed=embed)
-                return
+            # Claim free rolls từ mission đã hoàn thành
+            if missions_cog:
+                claimed = await missions_cog.claim_free_rolls(user.id)
+                if claimed > 0:
+                    pass  # Đã claim, giờ check xem có free roll không
+
+            # Dùng free roll nếu có
+            if missions_cog and await missions_cog.use_free_roll(user.id):
+                used_free_roll = True
+            else:
+                is_available, remaining = cooldown_service.check_cooldown(player["last_roll"])
+                if not is_available:
+                    hours = int(remaining // 3600)
+                    minutes = int((remaining % 3600) // 60)
+                    seconds = int(remaining % 60)
+                    embed = discord.Embed(
+                        title="⏳ VÒNG QUAY ĐANG TRONG THỜI GIAN CHỜ",
+                        description=f"Bạn đã sử dụng lượt quay rồi.\n\n`⏱️` Vui lòng quay lại sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giây**\n\n💡 *Hoàn thành nhiệm vụ `/missions` để có lượt roll free!*",
+                        color=discord.Color.from_rgb(255, 75, 75)
+                    )
+                    embed.set_footer(text="Hồi chiêu mỗi 3 giờ.")
+                    await interaction.followup.send(embed=embed)
+                    return
 
         # Xóa inventory cũ (đã quá 3h) trước khi tạo mới
         existing = await self._get_inventory(user.id)
         if existing:
             embed = discord.Embed(
                 title="⚠️ BẠN CÓ INVENTORY CHƯA CHỌN!",
-                description="Bạn vẫn còn inventory từ lần roll trước chưa chọn. Hãy dùng `/pick <số>` để chọn trước khi roll tiếp.\n\nNếu inventory đã quá **3 tiếng**, nó sẽ tự động bị xóa.",
+                description="Bạn vẫn còn inventory từ lần roll trước chưa chọn. Hãy dùng `/pick <số>` để chọn trước khi roll tiếp.\n\nNếu inventory đã quá **1 tiếng**, nó sẽ tự động bị xóa.",
                 color=discord.Color.orange()
             )
             await interaction.followup.send(embed=embed)
             return
 
+        # Boost: +1 slot vĩnh viễn
+        has_boost = missions_cog and missions_cog.has_boost(interaction)
+        if has_boost:
+            count += 1  # Boost thêm 1 slot
+
         # Roll N lần
         rolled_roles = rng_engine.roll_multi(player["lucky"], count=count)
         await self._save_inventory(user.id, rolled_roles)
 
-        # Cập nhật last_roll để tính cooldown (chưa đổi role, chỉ đánh dấu đã roll)
-        async with await self.bot.db_manager.connect() as conn:
-            now = datetime.utcnow().isoformat()
-            await conn.execute(
-                "UPDATE players SET total_rolls = total_rolls + 1, last_roll = ?, updated_at = ? WHERE user_id = ?",
-                (now, now, user.id)
-            )
-            await conn.commit()
+        # +1 roll count cho nhiệm vụ
+        if missions_cog:
+            await missions_cog.add_roll_count(user.id)
+
+        # Cập nhật last_roll (chỉ khi không dùng free roll)
+        if not used_free_roll:
+            async with await self.bot.db_manager.connect() as conn:
+                now = datetime.utcnow().isoformat()
+                await conn.execute(
+                    "UPDATE players SET total_rolls = total_rolls + 1, last_roll = ?, updated_at = ? WHERE user_id = ?",
+                    (now, now, user.id)
+                )
+                await conn.commit()
+        else:
+            async with await self.bot.db_manager.connect() as conn:
+                now = datetime.utcnow().isoformat()
+                await conn.execute(
+                    "UPDATE players SET total_rolls = total_rolls + 1, updated_at = ? WHERE user_id = ?",
+                    (now, user.id)
+                )
+                await conn.commit()
 
         # Hiển thị kết quả
-        pick_commands = " | ".join(f"`/pick {i}`" for i in range(1, count + 1))
+        boost_text = " ⚡+1 Boost" if has_boost else ""
+        free_text = " 🆓 Free Roll!" if used_free_roll else ""
+        pick_commands = " | ".join(f"`/pick {i}`" for i in range(1, len(rolled_roles) + 1))
         embed = discord.Embed(
-            title=f"🎰 KHO BÁU VÒNG QUAY - CHỌN 1 TRONG {count}",
-            description=f"{user.mention} vừa mở kho báu! Hãy chọn **1** danh hiệu bằng lệnh:\n\n{pick_commands}\n\n⏰ **Hết hạn sau 3 tiếng!** Nếu không chọn, kho báu sẽ biến mất.",
+            title=f"🎰 KHO BÁU VÒNG QUAY - CHỌN 1 TRONG {len(rolled_roles)}",
+            description=f"{user.mention} vừa mở kho báu!{free_text}{boost_text}\n\n{pick_commands}\n\n⏰ **Hết hạn sau 1 tiếng!**",
             color=discord.Color.gold()
         )
 
-        slot_emojis = ["1️⃣", "2️⃣", "3️⃣"]
+        slot_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
         for i, role in enumerate(rolled_roles):
             color_hex = role.get("embed_color", "0xFFFFFF").replace("0x", "")
             embed.add_field(
@@ -245,11 +278,11 @@ class RollCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"🎒 KHO BÁU CỦA {user.name.upper()}",
-            description=f"Bạn có **{len(inventory)}** danh hiệu đang chờ chọn:\n\nDùng `/pick <số>` để chọn!\n⏰ Tự động xóa sau **3 tiếng** kể từ lúc roll.",
+            description=f"Bạn có **{len(inventory)}** danh hiệu đang chờ chọn:\n\nDùng `/pick <số>` để chọn!\n⏰ Tự động xóa sau **1 tiếng** kể từ lúc roll.",
             color=discord.Color.gold()
         )
 
-        slot_emojis = ["1️⃣", "2️⃣", "3️⃣"]
+        slot_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
         for item in inventory:
             role = item["role"]
             slot = item["slot"]

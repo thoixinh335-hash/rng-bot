@@ -89,6 +89,19 @@ class DatabaseManager:
                     FOREIGN KEY(user_id) REFERENCES players(user_id) ON DELETE CASCADE
                 );
             """)
+
+            # Bảng Nhiệm vụ hàng ngày (Daily Missions)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS daily_missions (
+                    user_id INTEGER PRIMARY KEY,
+                    chat_count INTEGER DEFAULT 0,
+                    roll_count INTEGER DEFAULT 0,
+                    voice_seconds INTEGER DEFAULT 0,
+                    date TEXT NOT NULL,
+                    free_rolls INTEGER DEFAULT 0,
+                    FOREIGN KEY(user_id) REFERENCES players(user_id) ON DELETE CASCADE
+                );
+            """)
             await db.commit()
 
     async def connect(self) -> _ConnectionContext:

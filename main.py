@@ -81,7 +81,8 @@ class RNGBot(commands.Bot):
             "cogs.collection",
             "cogs.history",
             "cogs.leaderboard",
-            "cogs.admin"
+            "cogs.admin",
+            "cogs.missions"
         ]
         for ext in initial_extensions:
             try:

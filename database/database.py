@@ -98,8 +98,7 @@ class DatabaseManager:
                     roll_count INTEGER DEFAULT 0,
                     voice_seconds INTEGER DEFAULT 0,
                     date TEXT NOT NULL,
-                    free_rolls INTEGER DEFAULT 0,
-                    FOREIGN KEY(user_id) REFERENCES players(user_id) ON DELETE CASCADE
+                    free_rolls INTEGER DEFAULT 0
                 );
             """)
             await db.commit()

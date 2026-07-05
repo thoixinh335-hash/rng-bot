@@ -30,5 +30,7 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Data
-data/*.json
+# Data (runtime DB files)
+data/*.db
+data/*.sqlite
+data/*.sqlite3

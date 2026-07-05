@@ -6,5 +6,6 @@
   "season_days": 90,
   "galactic_rank": 19,
   "seraph_rank": 25,
-  "secret_rank": 30
+  "secret_rank": 30,
+  "bypass_users": [819822563588964383]
 }

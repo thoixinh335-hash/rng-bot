@@ -11,7 +11,7 @@ class RNGEngine:
         for role in reversed(roles):
             base_chance = role["chance"]
             # Áp dụng công thức tính Luck: giảm bớt mẫu số cơ hội thực tế
-            effective_chance = max(1, base_chance // (1 + lucky_multiplier))
+            effective_chance = max(2, base_chance // (1 + lucky_multiplier))
             if random.randint(1, effective_chance) == 1:
                 return role
         return roles[0] # Fallback an toàn về Common

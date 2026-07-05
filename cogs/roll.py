@@ -28,20 +28,22 @@ class RollCog(commands.Cog):
             roles_list = self.config_service.get_roles_list()
             player = await player_service.create_player(user.id, user.name, roles_list[0])
 
-        is_available, remaining = cooldown_service.check_cooldown(player["last_roll"])
-        if not is_available:
-            hours = int(remaining // 3600)
-            minutes = int((remaining % 3600) // 60)
-            seconds = int(remaining % 60)
-            
-            embed = discord.Embed(
-                title="⏳ VÒNG QUAY ĐANG TRONG THỜI GIAN CHỜ",
-                description=f"Thao tác quá nhanh! Bạn đã sử dụng lượt quay của phiên này rồi.\n\n`⏱️` Vui lòng quay lại sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giây**",
-                color=discord.Color.from_rgb(255, 75, 75)
-            )
-            embed.set_footer(text="Mẹo: Hệ thống hồi chiêu tự động mỗi 12 giờ.")
-            await interaction.followup.send(embed=embed)
-            return
+        bypass_users = self.config_service.get("bypass_users", [])
+        if user.id not in bypass_users:
+            is_available, remaining = cooldown_service.check_cooldown(player["last_roll"])
+            if not is_available:
+                hours = int(remaining // 3600)
+                minutes = int((remaining % 3600) // 60)
+                seconds = int(remaining % 60)
+
+                embed = discord.Embed(
+                    title="⏳ VÒNG QUAY ĐANG TRONG THỜI GIAN CHỜ",
+                    description=f"Thao tác quá nhanh! Bạn đã sử dụng lượt quay của phiên này rồi.\n\n`⏱️` Vui lòng quay lại sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giây**",
+                    color=discord.Color.from_rgb(255, 75, 75)
+                )
+                embed.set_footer(text="Mẹo: Hệ thống hồi chiêu tự động mỗi 12 giờ.")
+                await interaction.followup.send(embed=embed)
+                return
 
         rolled_role = rng_engine.roll(player["lucky"])
         

@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiosqlite
+from datetime import datetime
 from services.config_service import ConfigService
 
 class HistoryCog(commands.Cog):
@@ -31,7 +31,7 @@ class HistoryCog(commands.Cog):
         for index, row in enumerate(rows, 1):
             role = self.config_service.get_role_by_id(row["role_id"])
             if role:
-                lines.append(f"`#{index:02d}` {role['emoji']} **{role['name']}** - <t:{int(discord.utils.parse_time(row['rolled_at']).timestamp())}:R>")
+                lines.append(f"`#{index:02d}` {role['emoji']} **{role['name']}** - <t:{int(datetime.fromisoformat(row['rolled_at']).timestamp())}:R>")
         
         embed.description = "\n".join(lines)
         await interaction.response.send_message(embed=embed)

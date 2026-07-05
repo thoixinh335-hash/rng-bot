@@ -55,8 +55,13 @@ class RollCog(commands.Cog):
                 )
             await conn.commit()
 
-    @app_commands.command(name="roll", description="Quay 3 lần và chọn 1 danh hiệu để nhận. Hồi chiêu mỗi 3 giờ.")
-    async def roll(self, interaction: discord.Interaction):
+    @app_commands.command(name="roll", description="Quay tối đa 3 lần và chọn 1 danh hiệu để nhận. Hồi chiêu mỗi 3 giờ.")
+    @app_commands.describe(count="Số lượt quay (1-3, mặc định 3)")
+    async def roll(self, interaction: discord.Interaction, count: int = 3):
+        if count < 1 or count > 3:
+            await interaction.response.send_message("❌ Số lượt quay phải từ **1 đến 3**.", ephemeral=True)
+            return
+
         await interaction.response.defer()
 
         user = interaction.user
@@ -100,8 +105,8 @@ class RollCog(commands.Cog):
             await interaction.followup.send(embed=embed)
             return
 
-        # Roll 3 lần
-        rolled_roles = rng_engine.roll_multi(player["lucky"], count=3)
+        # Roll N lần
+        rolled_roles = rng_engine.roll_multi(player["lucky"], count=count)
         await self._save_inventory(user.id, rolled_roles)
 
         # Cập nhật last_roll để tính cooldown (chưa đổi role, chỉ đánh dấu đã roll)
@@ -113,10 +118,11 @@ class RollCog(commands.Cog):
             )
             await conn.commit()
 
-        # Hiển thị 3 kết quả
+        # Hiển thị kết quả
+        pick_commands = " | ".join(f"`/pick {i}`" for i in range(1, count + 1))
         embed = discord.Embed(
-            title="🎰 KHO BÁU VÒNG QUAY - CHỌN 1 TRONG 3",
-            description=f"{user.mention} vừa mở kho báu! Hãy chọn **1** danh hiệu bằng lệnh:\n\n`/pick 1` | `/pick 2` | `/pick 3`\n\n⏰ **Hết hạn sau 3 tiếng!** Nếu không chọn, kho báu sẽ biến mất.",
+            title=f"🎰 KHO BÁU VÒNG QUAY - CHỌN 1 TRONG {count}",
+            description=f"{user.mention} vừa mở kho báu! Hãy chọn **1** danh hiệu bằng lệnh:\n\n{pick_commands}\n\n⏰ **Hết hạn sau 3 tiếng!** Nếu không chọn, kho báu sẽ biến mất.",
             color=discord.Color.gold()
         )
 
@@ -129,17 +135,17 @@ class RollCog(commands.Cog):
                 inline=True
             )
 
-        embed.set_footer(text=f"Luck hiện tại: +{player['lucky']}%  •  Dùng /pick <1-3> để chọn")
+        embed.set_footer(text=f"Luck hiện tại: +{player['lucky']}%  •  Dùng /pick <1-{count}> để chọn")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="pick", description="Chọn 1 trong 3 danh hiệu từ inventory sau khi roll.")
-    @app_commands.describe(slot="Số slot bạn muốn chọn (1, 2 hoặc 3)")
+    @app_commands.command(name="pick", description="Chọn 1 danh hiệu từ inventory sau khi roll.")
+    @app_commands.describe(slot="Số slot bạn muốn chọn")
     async def pick(self, interaction: discord.Interaction, slot: int):
-        if slot not in (1, 2, 3):
-            await interaction.response.send_message("❌ Vui lòng chọn slot **1**, **2** hoặc **3**. Ví dụ: `/pick 1`", ephemeral=True)
-            return
-
         await interaction.response.defer()
+
+        if slot < 1:
+            await interaction.followup.send("❌ Số slot phải từ **1** trở lên.", ephemeral=True)
+            return
         user = interaction.user
         player_service = self.bot.player_service
         role_manager = self.bot.role_manager

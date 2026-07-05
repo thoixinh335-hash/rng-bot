@@ -93,9 +93,13 @@ class RNGBot(commands.Bot):
     async def on_ready(self):
         logger.info(f"--- ĐÃ ĐĂNG NHẬP THÀNH CÔNG VỚI TÊN: {self.user} ---")
         try:
-            # Tự động đồng bộ các Slash Command lên Discord Gateway API toàn cầu
+            # Sync global (có thể mất 1h) + sync instant cho từng guild
             synced = await self.tree.sync()
             logger.info(f"Hệ thống điều hướng Application Tree đã đồng bộ {len(synced)} lệnh Slash thành công.")
+            # Sync ngay cho từng guild đang có mặt
+            for guild in self.guilds:
+                await self.tree.sync(guild=guild)
+                logger.info(f"Đã sync instant cho guild: {guild.name}")
         except Exception as e:
             logger.error(f"Lỗi xảy ra trong quá trình đồng bộ các ứng dụng lệnh Slash: {e}")
 

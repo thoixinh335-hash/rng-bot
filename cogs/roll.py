@@ -310,7 +310,7 @@ class RollCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"🎒 KHO BÁU CỦA {user.name.upper()}",
-            description=f"Bạn có **{len(inventory)}** danh hiệu đang chờ chọn:\n\nDùng `/pick <số>` để chọn!\n⏰ Tự động xóa sau **1 tiếng** kể từ lúc roll.",
+            description=f"Bạn có **{len(inventory)}** danh hiệu đang chờ chọn:\n\n⏰ Tự động xóa sau **1 tiếng** kể từ lúc roll.",
             color=discord.Color.gold()
         )
 
@@ -325,7 +325,11 @@ class RollCog(commands.Cog):
                 inline=True
             )
 
-        await interaction.followup.send(embed=embed)
+        # Tạo View với nút cho mỗi slot trong inventory
+        slots_roles = [item["role"] for item in inventory]
+        view = RollChoiceView(self, user.id, slots_roles)
+
+        await interaction.followup.send(embed=embed, view=view)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(RollCog(bot))

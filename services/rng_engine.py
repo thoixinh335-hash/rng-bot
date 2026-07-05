@@ -15,3 +15,10 @@ class RNGEngine:
             if random.randint(1, effective_chance) == 1:
                 return role
         return roles[0] # Fallback an toàn về Common
+
+    def roll_multi(self, lucky_multiplier: int, count: int = 3) -> list[dict]:
+        """Quay nhiều lần, mỗi lần trả về 1 role. Có thể trùng nhau."""
+        results = []
+        for _ in range(count):
+            results.append(self.roll(lucky_multiplier))
+        return results

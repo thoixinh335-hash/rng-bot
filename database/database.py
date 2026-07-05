@@ -77,6 +77,18 @@ class DatabaseManager:
                     status TEXT NOT NULL DEFAULT 'ACTIVE'
                 );
             """)
+
+            # Bảng Kho đồ tạm thời sau khi Roll (Roll Inventory)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS roll_inventory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    role_id INTEGER NOT NULL,
+                    slot INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES players(user_id) ON DELETE CASCADE
+                );
+            """)
             await db.commit()
 
     async def connect(self) -> _ConnectionContext:

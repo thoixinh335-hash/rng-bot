@@ -56,8 +56,8 @@ class RollCog(commands.Cog):
             await conn.commit()
 
     @app_commands.command(name="roll", description="Quay tối đa 3 lần và chọn 1 danh hiệu để nhận. Hồi chiêu mỗi 3 giờ.")
-    @app_commands.describe(count="Số lượt quay (1-3, mặc định 3)")
-    async def roll(self, interaction: discord.Interaction, count: int = 3):
+    @app_commands.describe(count="Số lượt quay (1-3, mặc định 1)")
+    async def roll(self, interaction: discord.Interaction, count: int = 1):
         if count < 1 or count > 3:
             await interaction.response.send_message("❌ Số lượt quay phải từ **1 đến 3**.", ephemeral=True)
             return

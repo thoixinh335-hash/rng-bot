@@ -187,13 +187,32 @@ class RollCog(commands.Cog):
             await interaction.followup.send(embed=embed)
             return
 
-        # Boost: +1 slot vĩnh viễn
+        # Boost: +1 slot vĩnh viễn - dùng role từ boost slot nếu có
         has_boost = missions_cog and missions_cog.has_boost(interaction)
+        boost_slot_role = None
+        if has_boost:
+            # Kiểm tra user đã equip role cho boost slot chưa
+            async with await self.bot.db_manager.connect() as conn:
+                async with conn.execute(
+                    "SELECT boost_slot_role_id FROM players WHERE user_id = ?",
+                    (user.id,)
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    boost_slot_role_id = row[0] if row and row[0] else None
+
+            if boost_slot_role_id:
+                roles_list = self.config_service.get_roles_list()
+                boost_slot_role = next((r for r in roles_list if r["role_id"] == boost_slot_role_id), None)
+
+        # Roll N lần (boost slot thêm 1 slot vĩnh viễn)
+        rolled_roles = rng_engine.roll_multi(player["lucky"], count=count)
         if has_boost:
             count += 1  # Boost thêm 1 slot
+            if boost_slot_role:
+                # Dùng role đã equip thay vì roll random
+                rolled_roles.append(boost_slot_role)
+            # else: không có role thì không thêm slot
 
-        # Roll N lần
-        rolled_roles = rng_engine.roll_multi(player["lucky"], count=count)
         await self._save_inventory(user.id, rolled_roles)
 
         # +1 roll count cho nhiệm vụ

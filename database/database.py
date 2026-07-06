@@ -54,6 +54,10 @@ class DatabaseManager:
                 await db.execute("ALTER TABLE players ADD COLUMN rolls_window_start TEXT;")
             except Exception:
                 pass
+            try:
+                await db.execute("ALTER TABLE players ADD COLUMN boost_slot_role_id INTEGER DEFAULT NULL;")
+            except Exception:
+                pass
 
             # Bảng Bộ sưu tập (Collections)
             await db.execute("""

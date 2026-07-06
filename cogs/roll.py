@@ -180,7 +180,6 @@ class RollCog(commands.Cog):
             # Tính thời gian còn lại
             oldest = min(item["created_at"] for item in existing)
             try:
-                from datetime import datetime
                 oldest_dt = datetime.fromisoformat(oldest)
                 remaining = 3600 - (datetime.utcnow() - oldest_dt).total_seconds()
                 if remaining < 0:

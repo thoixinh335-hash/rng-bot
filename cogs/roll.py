@@ -119,72 +119,96 @@ class RollCog(commands.Cog):
             roles_list = self.config_service.get_roles_list()
             player = await player_service.create_player(user.id, user.name, roles_list[0])
 
-        # Check giới hạn roll: 3 lượt / 3 tiếng (trừ bypass users và free roll)
-        bypass_users = self.config_service.get("bypass_users", [])
+        # Check giới hạn roll: 3 lượt / 3 tiếng
         missions_cog = self.bot.get_cog("MissionsCog")
         used_free_roll = False
 
-        if user.id not in bypass_users:
-            # Claim free rolls từ mission đã hoàn thành
-            if missions_cog:
-                claimed = await missions_cog.claim_free_rolls(user.id)
-                if claimed > 0:
-                    pass  # Đã claim, giờ check xem có free roll không
+        # Claim free rolls từ mission đã hoàn thành
+        if missions_cog:
+            claimed = await missions_cog.claim_free_rolls(user.id)
+            if claimed > 0:
+                pass
 
-            # Dùng free roll nếu có
-            if missions_cog and await missions_cog.use_free_roll(user.id):
-                used_free_roll = True
-            else:
-                roll_limit = self.config_service.get("roll_limit", 3)
-                limit_hours = self.config_service.get("roll_limit_hours", 3)
-                rolls_used = player.get("rolls_used", 0) or 0
-                window_start_str = player.get("rolls_window_start")
+        # Dùng free roll nếu có
+        if missions_cog and await missions_cog.use_free_roll(user.id):
+            used_free_roll = True
+        else:
+            roll_limit = self.config_service.get("roll_limit", 3)
+            limit_hours = self.config_service.get("roll_limit_hours", 3)
+            rolls_used = player.get("rolls_used", 0) or 0
+            window_start_str = player.get("rolls_window_start")
 
-                now = datetime.utcnow()
-                window_expired = True
-                if window_start_str:
+            now = datetime.utcnow()
+            window_expired = True
+            if window_start_str:
+                try:
+                    window_start = datetime.fromisoformat(window_start_str)
+                    elapsed = (now - window_start).total_seconds()
+                    if elapsed < limit_hours * 3600:
+                        window_expired = False
+                except Exception:
+                    window_expired = True
+
+            if window_expired:
+                rolls_used = 0
+
+            if rolls_used >= roll_limit:
+                if window_start_str and not window_expired:
                     try:
                         window_start = datetime.fromisoformat(window_start_str)
-                        elapsed = (now - window_start).total_seconds()
-                        if elapsed < limit_hours * 3600:
-                            window_expired = False
+                        window_end = window_start + timedelta(hours=limit_hours)
+                        remaining = (window_end - now).total_seconds()
+                        hours = int(remaining // 3600)
+                        minutes = int((remaining % 3600) // 60)
+                        seconds = int(remaining % 60)
                     except Exception:
-                        window_expired = True
-
-                if window_expired:
-                    rolls_used = 0
-
-                if rolls_used >= roll_limit:
-                    if window_start_str and not window_expired:
-                        try:
-                            window_start = datetime.fromisoformat(window_start_str)
-                            window_end = window_start + timedelta(hours=limit_hours)
-                            remaining = (window_end - now).total_seconds()
-                            hours = int(remaining // 3600)
-                            minutes = int((remaining % 3600) // 60)
-                            seconds = int(remaining % 60)
-                        except Exception:
-                            hours = minutes = seconds = 0
-                    else:
                         hours = minutes = seconds = 0
+                else:
+                    hours = minutes = seconds = 0
 
-                    embed = discord.Embed(
-                        title="⚠️ ĐÃ HẾT LƯỢT QUAY",
-                        description=f"Bạn đÃ dùng hết **{roll_limit} lượt quay** trong {limit_hours} tiếng qua.\n\n`⏱️` Reset sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giÂy**\n\n💡 *HoÀn thÀnh `/missions` để cÃ lượt roll free!*",
-                        color=discord.Color.from_rgb(255, 75, 75)
-                    )
-                    embed.set_footer(text=f"Giới hạn: {roll_limit} lượt / {limit_hours} tiếng")
-                    await interaction.followup.send(embed=embed)
-                    return
+                embed = discord.Embed(
+                    title="⚠️ ĐÃ HẾT LƯỢT QUAY",
+                    description=f"Bạn đã dùng hết **{roll_limit} lượt quay** trong {limit_hours} tiếng qua.\n\n`⏱️` Reset sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giây**\n\n💡 *Hoàn thành `/missions` để có lượt roll free!*",
+                    color=discord.Color.from_rgb(255, 75, 75)
+                )
+                embed.set_footer(text=f"Giới hạn: {roll_limit} lượt / {limit_hours} tiếng")
+                await interaction.followup.send(embed=embed)
+                return
         # Xóa inventory cũ (đã quá 3h) trước khi tạo mới
         existing = await self._get_inventory(user.id)
         if existing:
+            # Tính thời gian còn lại
+            oldest = min(item["created_at"] for item in existing)
+            try:
+                from datetime import datetime
+                oldest_dt = datetime.fromisoformat(oldest)
+                remaining = 3600 - (datetime.utcnow() - oldest_dt).total_seconds()
+                if remaining < 0:
+                    remaining = 0
+                minutes_left = int(remaining // 60)
+                seconds_left = int(remaining % 60)
+                time_text = "⏰ Hết hạn sau: **{0} phút {1} giây**".format(minutes_left, seconds_left)
+            except Exception:
+                time_text = ""
+
+            slot_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+            inventory_text = ""
+            for item in existing:
+                role = item["role"]
+                inventory_text += f"{slot_emojis[item['slot']-1]} **Slot {item['slot']}**: {role['emoji']} {role['name']}\n"
+
             embed = discord.Embed(
                 title="⚠️ BẠN CÓ INVENTORY CHƯA CHỌN!",
-                description="Bạn vẫn còn inventory từ lần roll trước chưa chọn. Hãy dùng `/pick <số>` để chọn trước khi roll tiếp.\n\nNếu inventory đã quá **1 tiếng**, nó sẽ tự động bị xóa.",
+                description=f"Đây là các danh hiệu bạn đang có:\n\n{inventory_text}\n"
+                            f"Dùng `/pick <số>` hoặc click nút bên dưới để chọn.\n"
+                            f"{time_text}",
                 color=discord.Color.orange()
             )
-            await interaction.followup.send(embed=embed)
+
+            # Thêm nút bấm cho từng slot
+            slots_roles = [item["role"] for item in existing]
+            view = RollChoiceView(self, user.id, slots_roles)
+            await interaction.followup.send(embed=embed, view=view)
             return
 
         # Boost: +1 slot vĩnh viễn - dùng role từ boost slot nếu có

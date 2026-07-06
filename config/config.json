@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "owner_id": 1119820359500304396,
+  "admin_ids": [1119820359500304396, 819822563588964383],
   "announcement_channel": 1523335043064402094,
   "cooldown_hours": 0,
   "roll_limit": 3,

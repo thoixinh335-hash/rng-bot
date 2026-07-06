@@ -13,8 +13,8 @@ class AdminCog(commands.Cog):
         self.config_service = ConfigService()
 
     def is_owner(self, interaction: discord.Interaction) -> bool:
-        owner_id = self.config_service.get("owner_id")
-        return interaction.user.id == owner_id
+        admin_ids = self.config_service.get("admin_ids", [])
+        return interaction.user.id in admin_ids
 
     admin_group = app_commands.Group(name="admin", description="Hệ thống lệnh kiểm soát đặc quyền tối cao của Quản Trị Viên.")
 

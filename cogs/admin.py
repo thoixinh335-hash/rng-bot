@@ -99,11 +99,61 @@ class AdminCog(commands.Cog):
         if not self.is_owner(interaction):
             await interaction.response.send_message("❌ Từ chối thực thi.", ephemeral=True)
             return
-        
+
         conf = self.config_service.config
         embed = discord.Embed(title="⚙️ CONFIGURATION ENGINE LIVE VIEW", color=discord.Color.orange())
         for k, v in conf.items():
             embed.add_field(name=k, value=f"`{v}`", inline=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @admin_group.command(name="checkperms", description="Kiểm tra quyền của bot (Manage Roles, hierarchy).")
+    async def check_perms(self, interaction: discord.Interaction):
+        if not self.is_owner(interaction):
+            await interaction.response.send_message("❌ Từ chối thực thi.", ephemeral=True)
+            return
+
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("❌ Lệnh chỉ dùng trong server.", ephemeral=True)
+            return
+
+        me = guild.me
+        perms = me.guild_permissions
+
+        embed = discord.Embed(title="🔐 KIỂM TRA QUYỀN BOT", color=discord.Color.blue())
+
+        # Quyền cơ bản
+        embed.add_field(name="📋 Quyền cơ bản", value="\n".join([
+            f"{'✅' if perms.manage_roles else '❌'} Manage Roles",
+            f"{'✅' if perms.manage_guild else '❌'} Manage Guild",
+            f"{'✅' if perms.kick_members else '❌'} Kick Members",
+            f"{'✅' if perms.ban_members else '❌'} Ban Members",
+        ]), inline=False)
+
+        # Vị trí role bot
+        bot_top_role = me.top_role
+        embed.add_field(name="🤖 Bot top role", value=f"`{bot_top_role.name}` (position: {bot_top_role.position})", inline=False)
+
+        # Check các role RNG
+        roles_list = self.config_service.get_roles_list()
+        rng_roles = []
+        cannot_assign = []
+        for r in roles_list:
+            role = guild.get_role(r["role_id"])
+            if role:
+                rng_roles.append(f"  • {role.name} (position: {role.position})")
+                if role.position >= bot_top_role.position:
+                    cannot_assign.append(f"  ❌ {role.name} (position {role.position} >= bot {bot_top_role.position})")
+
+        embed.add_field(name=f"🎭 RNG Roles ({len(rng_roles)}/{len(roles_list)})", value="\n".join(rng_roles[:10]) + ("\n..." if len(rng_roles) > 10 else ""), inline=False)
+
+        if cannot_assign:
+            embed.add_field(name="⚠️ KHÔNG THỂ GÁN", value="\n".join(cannot_assign), inline=False)
+            embed.color = discord.Color.red()
+        else:
+            embed.add_field(name="✅ Kết quả", value="Bot có đủ quyền gán TẤT CẢ role RNG!", inline=False)
+            embed.color = discord.Color.green()
+
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):

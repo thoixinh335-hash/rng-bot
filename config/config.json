@@ -3,6 +3,8 @@
   "owner_id": 1119820359500304396,
   "announcement_channel": 1523335043064402094,
   "cooldown_hours": 0,
+  "roll_limit": 3,
+  "roll_limit_hours": 3,
   "season_days": 90,
   "galactic_rank": 19,
   "seraph_rank": 25,

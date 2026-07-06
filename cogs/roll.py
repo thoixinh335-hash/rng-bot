@@ -119,7 +119,7 @@ class RollCog(commands.Cog):
             roles_list = self.config_service.get_roles_list()
             player = await player_service.create_player(user.id, user.name, roles_list[0])
 
-        # Check cooldown (trừ bypass users hoặc có free roll từ mission)
+        # Check giới hạn roll: 3 lượt / 3 tiếng (trừ bypass users và free roll)
         bypass_users = self.config_service.get("bypass_users", [])
         missions_cog = self.bot.get_cog("MissionsCog")
         used_free_roll = False
@@ -135,20 +135,47 @@ class RollCog(commands.Cog):
             if missions_cog and await missions_cog.use_free_roll(user.id):
                 used_free_roll = True
             else:
-                is_available, remaining = cooldown_service.check_cooldown(player["last_roll"])
-                if not is_available:
-                    hours = int(remaining // 3600)
-                    minutes = int((remaining % 3600) // 60)
-                    seconds = int(remaining % 60)
+                roll_limit = self.config_service.get("roll_limit", 3)
+                limit_hours = self.config_service.get("roll_limit_hours", 3)
+                rolls_used = player.get("rolls_used", 0) or 0
+                window_start_str = player.get("rolls_window_start")
+
+                now = datetime.utcnow()
+                window_expired = True
+                if window_start_str:
+                    try:
+                        window_start = datetime.fromisoformat(window_start_str)
+                        elapsed = (now - window_start).total_seconds()
+                        if elapsed < limit_hours * 3600:
+                            window_expired = False
+                    except Exception:
+                        window_expired = True
+
+                if window_expired:
+                    rolls_used = 0
+
+                if rolls_used >= roll_limit:
+                    if window_start_str and not window_expired:
+                        try:
+                            window_start = datetime.fromisoformat(window_start_str)
+                            window_end = window_start + timedelta(hours=limit_hours)
+                            remaining = (window_end - now).total_seconds()
+                            hours = int(remaining // 3600)
+                            minutes = int((remaining % 3600) // 60)
+                            seconds = int(remaining % 60)
+                        except Exception:
+                            hours = minutes = seconds = 0
+                    else:
+                        hours = minutes = seconds = 0
+
                     embed = discord.Embed(
-                        title="⏳ VÒNG QUAY ĐANG TRONG THỜI GIAN CHỜ",
-                        description=f"Bạn đã sử dụng lượt quay rồi.\n\n`⏱️` Vui lòng quay lại sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giây**\n\n💡 *Hoàn thành nhiệm vụ `/missions` để có lượt roll free!*",
+                        title="⚠️ ĐÃ HẾT LƯỢT QUAY",
+                        description=f"Bạn đÃ dùng hết **{roll_limit} lượt quay** trong {limit_hours} tiếng qua.\n\n`⏱️` Reset sau: **{hours:02d} giờ {minutes:02d} phút {seconds:02d} giÂy**\n\n💡 *HoÀn thÀnh `/missions` để cÃ lượt roll free!*",
                         color=discord.Color.from_rgb(255, 75, 75)
                     )
-                    embed.set_footer(text="Hồi chiêu mỗi 3 giờ.")
+                    embed.set_footer(text=f"Giới hạn: {roll_limit} lượt / {limit_hours} tiếng")
                     await interaction.followup.send(embed=embed)
                     return
-
         # Xóa inventory cũ (đã quá 3h) trước khi tạo mới
         existing = await self._get_inventory(user.id)
         if existing:
@@ -173,23 +200,38 @@ class RollCog(commands.Cog):
         if missions_cog:
             await missions_cog.add_roll_count(user.id)
 
-        # Cập nhật last_roll (chỉ khi không dùng free roll)
-        if not used_free_roll:
-            async with await self.bot.db_manager.connect() as conn:
-                now = datetime.utcnow().isoformat()
-                await conn.execute(
-                    "UPDATE players SET total_rolls = total_rolls + 1, last_roll = ?, updated_at = ? WHERE user_id = ?",
-                    (now, now, user.id)
-                )
-                await conn.commit()
-        else:
-            async with await self.bot.db_manager.connect() as conn:
-                now = datetime.utcnow().isoformat()
+        # Cập nhật rolls_used, last_roll, window_start
+        async with await self.bot.db_manager.connect() as conn:
+            now_iso = datetime.utcnow().isoformat()
+            if not used_free_roll:
+                ws = player.get("rolls_window_start")
+                limit_hours_cfg = self.config_service.get("roll_limit_hours", 3)
+                window_valid = False
+                if ws:
+                    try:
+                        ws_dt = datetime.fromisoformat(ws)
+                        elapsed = (datetime.utcnow() - ws_dt).total_seconds()
+                        if elapsed < limit_hours_cfg * 3600:
+                            window_valid = True
+                    except Exception:
+                        pass
+
+                if window_valid:
+                    await conn.execute(
+                        "UPDATE players SET total_rolls = total_rolls + 1, rolls_used = rolls_used + 1, last_roll = ?, updated_at = ? WHERE user_id = ?",
+                        (now_iso, now_iso, user.id)
+                    )
+                else:
+                    await conn.execute(
+                        "UPDATE players SET total_rolls = total_rolls + 1, rolls_used = 1, rolls_window_start = ?, last_roll = ?, updated_at = ? WHERE user_id = ?",
+                        (now_iso, now_iso, now_iso, user.id)
+                    )
+            else:
                 await conn.execute(
                     "UPDATE players SET total_rolls = total_rolls + 1, updated_at = ? WHERE user_id = ?",
-                    (now, user.id)
+                    (now_iso, user.id)
                 )
-                await conn.commit()
+            await conn.commit()
 
         # Hiển thị kết quả
         boost_text = " ⚡+1 Boost" if has_boost else ""

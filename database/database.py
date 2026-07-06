@@ -39,10 +39,21 @@ class DatabaseManager:
                     lucky INTEGER DEFAULT 0,
                     total_rolls INTEGER DEFAULT 0,
                     last_roll TEXT,
+                    rolls_used INTEGER DEFAULT 0,
+                    rolls_window_start TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+            # Migration: thêm cột nếu bảng players đã tồn tại
+            try:
+                await db.execute("ALTER TABLE players ADD COLUMN rolls_used INTEGER DEFAULT 0;")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE players ADD COLUMN rolls_window_start TEXT;")
+            except Exception:
+                pass
 
             # Bảng Bộ sưu tập (Collections)
             await db.execute("""

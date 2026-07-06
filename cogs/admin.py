@@ -165,7 +165,7 @@ class AdminCog(commands.Cog):
         # Đếm số dòng trước khi xóa
         async with await self.bot.db_manager.connect() as conn:
             counts = {}
-            for table in ["players", "collections", "history", "roll_inventory", "daily_missions"]:
+            for table in ["players", "collections", "history", "roll_inventory", "daily_missions", "seasons"]:
                 cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
                 counts[table] = (await cursor.fetchone())[0]
 
@@ -193,6 +193,7 @@ class AdminCog(commands.Cog):
                     await conn.execute("DELETE FROM roll_inventory")
                     await conn.execute("DELETE FROM daily_missions")
                     await conn.execute("DELETE FROM players")
+                    await conn.execute("DELETE FROM seasons")
                     await conn.commit()
 
                 embed = discord.Embed(

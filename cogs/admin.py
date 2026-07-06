@@ -156,5 +156,69 @@ class AdminCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @admin_group.command(name="resetall", description="⚠️ XÓA TẤT CẢ dữ liệu người chơi, history, collection, missions. KHÔNG THỂ HOÀN TÁC.")
+    async def reset_all_data(self, interaction: discord.Interaction):
+        if not self.is_owner(interaction):
+            await interaction.response.send_message("❌ Từ chối thực thi.", ephemeral=True)
+            return
+
+        # Đếm số dòng trước khi xóa
+        async with await self.bot.db_manager.connect() as conn:
+            counts = {}
+            for table in ["players", "collections", "history", "roll_inventory", "daily_missions"]:
+                cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
+                counts[table] = (await cursor.fetchone())[0]
+
+        # Tạo confirm button
+        class ConfirmView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=30)
+                self.confirmed = False
+
+            @discord.ui.button(label="⚠️ XÁC NHẬN XÓA TẤT CẢ", style=discord.ButtonStyle.danger)
+            async def confirm(self, btn_interaction: discord.Interaction, button: discord.ui.Button):
+                if btn_interaction.user.id != interaction.user.id:
+                    await btn_interaction.response.send_message("❌ Chỉ người gọi mới xác nhận được!", ephemeral=True)
+                    return
+
+                self.confirmed = True
+                for item in self.children:
+                    item.disabled = True
+                await btn_interaction.response.edit_message(view=self)
+
+                # Xóa tất cả dữ liệu
+                async with await self.bot.db_manager.connect() as conn:
+                    await conn.execute("DELETE FROM collections")
+                    await conn.execute("DELETE FROM history")
+                    await conn.execute("DELETE FROM roll_inventory")
+                    await conn.execute("DELETE FROM daily_missions")
+                    await conn.execute("DELETE FROM players")
+                    await conn.commit()
+
+                embed = discord.Embed(
+                    title="🧹 ĐÃ XÓA TẤT CẢ DỮ LIỆU",
+                    description="Đã reset toàn bộ hệ thống về trạng thái ban đầu.\n"
+                                "Mọi người chơi cần `/roll` lại để tạo profile mới.",
+                    color=discord.Color.red()
+                )
+                embed.add_field(name="📊 Đã xóa", value="\n".join([f"  • {t}: **{c}** dòng" for t, c in counts.items()]))
+                await btn_interaction.followup.send(embed=embed)
+
+            @discord.ui.button(label="Hủy", style=discord.ButtonStyle.secondary)
+            async def cancel(self, btn_interaction: discord.Interaction, button: discord.ui.Button):
+                if btn_interaction.user.id != interaction.user.id:
+                    return
+                for item in self.children:
+                    item.disabled = True
+                await btn_interaction.response.edit_message(content="✅ Đã hủy.", embed=None, view=self)
+
+        embed = discord.Embed(
+            title="⚠️ XÁC NHẬN XÓA TẤT CẢ DỮ LIỆU",
+            description="Lệnh này sẽ xóa **TOÀN BỘ** dữ liệu. **KHÔNG THỂ HOÀN TÁC**!\n\n"
+                        "📊 Sắp xóa:\n" + "\n".join([f"  • {t}: **{c}** dòng" for t, c in counts.items()]),
+            color=discord.Color.orange()
+        )
+        await interaction.response.send_message(embed=embed, view=ConfirmView(), ephemeral=True)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))

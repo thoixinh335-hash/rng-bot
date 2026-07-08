@@ -143,6 +143,16 @@ class DatabaseManager:
             await db.execute("PRAGMA foreign_keys = ON;")
             await db.commit()
 
+            # Tạo index cho các truy vấn thường xuyên
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_history_user_id ON history(user_id);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_history_rolled_at ON history(rolled_at);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_collections_user_id ON collections(user_id);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_roll_inventory_user_id ON roll_inventory(user_id);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_daily_missions_date ON daily_missions(date);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_seasons_status ON seasons(status);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_players_highest_rank ON players(highest_rank);")
+            await db.commit()
+
     async def connect(self) -> _ConnectionContext:
         # Trả về đối tượng context chưa kích hoạt luồng để tương thích với cấu trúc 'async with await'
         return _ConnectionContext(self.db_path)

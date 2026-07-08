@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from datetime import datetime
 
 
 class BoostSlotView(discord.ui.View):
@@ -121,7 +122,7 @@ class BoostCog(commands.Cog):
         async with await self.bot.db_manager.connect() as conn:
             await conn.execute(
                 "UPDATE players SET boost_slot_role_id = ?, updated_at = ? WHERE user_id = ?",
-                (role["role_id"], interaction.message.created_at.isoformat(), user.id)
+                (role["role_id"], datetime.utcnow().isoformat(), user.id)
             )
             await conn.commit()
 

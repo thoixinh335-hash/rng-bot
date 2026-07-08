@@ -9,5 +9,6 @@
   "galactic_rank": 19,
   "seraph_rank": 25,
   "secret_rank": 30,
-  "boost_role_id": 1505505891225567334
+  "boost_role_id": 1505505891225567334,
+  "clear_global_commands_once": true
 }

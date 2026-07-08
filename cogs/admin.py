@@ -3,9 +3,12 @@ from discord.ext import commands
 from discord import app_commands
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 import aiosqlite
+import logging
 from services.config_service import ConfigService
+
+logger = logging.getLogger("rng_bot")
 
 class AdminCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -81,6 +84,7 @@ class AdminCog(commands.Cog):
         
         async with await self.bot.db_manager.connect() as conn:
             await conn.execute("DELETE FROM players WHERE user_id = ?", (target_user.id,))
+            await conn.execute("DELETE FROM daily_missions WHERE user_id = ?", (target_user.id,))
             await conn.commit()
             
         await interaction.response.send_message(f"🧹 Đã xóa bỏ toàn bộ dữ liệu lịch sử và hồ sơ của người dùng {target_user.mention} khỏi hệ thống.", ephemeral=True)
@@ -223,6 +227,59 @@ class AdminCog(commands.Cog):
             color=discord.Color.orange()
         )
         await interaction.response.send_message(embed=embed, view=ConfirmView(self.bot, interaction.user.id, counts), ephemeral=True)
+
+    # ==========================================
+    # ⚠️ HÀM TEST TẠM - XÓA SAU KHI TEST XONG!
+    # ==========================================
+    @app_commands.command(name="admintest", description="TEST: Kiểm tra bot hoạt động (chỉ admin 819822563588964383)")
+    async def admin_test(self, interaction: discord.Interaction):
+        if interaction.user.id != 819822563588964383:
+            await interaction.response.send_message("❌ Chỉ dành cho admin test!", ephemeral=True)
+            return
+
+        # Kiểm tra toàn diện
+        status_lines = []
+
+        # 1. Kết nối Discord
+        status_lines.append(f"✅ **Gateway**: {round(self.bot.latency * 1000)}ms")
+
+        # 2. Database
+        try:
+            async with await self.bot.db_manager.connect() as conn:
+                cursor = await conn.execute("SELECT COUNT(*) FROM players")
+                player_count = (await cursor.fetchone())[0]
+                cursor = await conn.execute("SELECT COUNT(*) FROM history")
+                history_count = (await cursor.fetchone())[0]
+            status_lines.append(f"✅ **Database**: {player_count} players, {history_count} rolls")
+        except Exception as e:
+            status_lines.append(f"❌ **Database**: {e}")
+
+        # 3. Config
+        try:
+            version = self.config_service.get("version", "?")
+            roles = len(self.config_service.get_roles_list())
+            status_lines.append(f"✅ **Config**: v{version}, {roles} roles")
+        except Exception as e:
+            status_lines.append(f"❌ **Config**: {e}")
+
+        # 4. Server info
+        guild = interaction.guild
+        if guild:
+            status_lines.append(f"✅ **Server**: {guild.name} ({guild.member_count} members)")
+            bot_member = guild.me
+            status_lines.append(f"✅ **Bot roles**: {len(bot_member.roles)} roles, top: {bot_member.top_role.name}")
+
+        # 5. Cogs loaded
+        cog_names = list(self.bot.cogs.keys())
+        status_lines.append(f"✅ **Cogs**: {len(cog_names)} loaded")
+
+        embed = discord.Embed(
+            title="🔧 ADMIN TEST - SYSTEM CHECK",
+            description="\n".join(status_lines),
+            color=discord.Color.green()
+        )
+        embed.set_footer(text="Hàm test tạm - Xóa sau khi test xong!")
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminCog(bot))

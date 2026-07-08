@@ -26,23 +26,11 @@ class MissionsCog(commands.Cog):
                 row = await cursor.fetchone()
 
             if not row or row["date"] != today:
-                # Reset nếu sang ngày mới
+                # Tạo mới hoặc reset nếu sang ngày mới
                 await conn.execute(
                     "INSERT OR REPLACE INTO daily_missions (user_id, chat_count, roll_count, voice_seconds, date, free_rolls) "
                     "VALUES (?, 0, 0, 0, ?, 0)",
                     (user_id, today),
-                )
-                await conn.commit()
-                return {
-                    "user_id": user_id, "chat_count": 0, "roll_count": 0,
-                    "voice_seconds": 0, "date": today, "free_rolls": 0
-                }
-
-            if row["date"] != today:
-                # Reset daily
-                await conn.execute(
-                    "UPDATE daily_missions SET chat_count=0, roll_count=0, voice_seconds=0, date=?, free_rolls=0 WHERE user_id=?",
-                    (today, user_id),
                 )
                 await conn.commit()
                 return {
@@ -99,8 +87,15 @@ class MissionsCog(commands.Cog):
 
         now = datetime.utcnow().timestamp()
 
-        # Vào voice
-        if after.channel and not before.channel:
+        # Vào voice (hoặc chuyển kênh)
+        if after.channel and (not before.channel or before.channel != after.channel):
+            # Nếu đang ở kênh cũ thì ghi nhận thời gian trước khi chuyển
+            if before.channel and before.channel != after.channel:
+                join_time = self._voice_join_times.pop(member.id, None)
+                if join_time:
+                    elapsed = int(now - join_time)
+                    if elapsed >= 5:
+                        await self._add_voice_seconds(member.id, elapsed)
             self._voice_join_times[member.id] = now
 
         # Rời voice
@@ -108,34 +103,36 @@ class MissionsCog(commands.Cog):
             join_time = self._voice_join_times.pop(member.id, None)
             if join_time:
                 elapsed = int(now - join_time)
-                if elapsed < 5:
-                    return  # Bỏ qua nếu vào rồi ra ngay
+                if elapsed >= 5:
+                    await self._add_voice_seconds(member.id, elapsed)
 
-                today = datetime.utcnow().strftime("%Y-%m-%d")
-                async with await self.bot.db_manager.connect() as conn:
-                    async with conn.execute(
-                        "SELECT voice_seconds, date FROM daily_missions WHERE user_id = ?",
-                        (member.id,),
-                    ) as cursor:
-                        row = await cursor.fetchone()
+    async def _add_voice_seconds(self, user_id: int, seconds: int):
+        """Cộng dồn số giây voice vào daily_missions"""
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        async with await self.bot.db_manager.connect() as conn:
+            async with conn.execute(
+                "SELECT voice_seconds, date FROM daily_missions WHERE user_id = ?",
+                (user_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
 
-                    if not row:
-                        await conn.execute(
-                            "INSERT INTO daily_missions (user_id, chat_count, roll_count, voice_seconds, date, free_rolls) "
-                            "VALUES (?, 0, 0, ?, ?, 0)",
-                            (member.id, elapsed, today),
-                        )
-                    elif row[1] != today:
-                        await conn.execute(
-                            "UPDATE daily_missions SET voice_seconds=?, chat_count=0, roll_count=0, date=?, free_rolls=0 WHERE user_id=?",
-                            (elapsed, today, member.id),
-                        )
-                    else:
-                        await conn.execute(
-                            "UPDATE daily_missions SET voice_seconds = voice_seconds + ? WHERE user_id = ?",
-                            (elapsed, member.id),
-                        )
-                    await conn.commit()
+            if not row:
+                await conn.execute(
+                    "INSERT INTO daily_missions (user_id, chat_count, roll_count, voice_seconds, date, free_rolls) "
+                    "VALUES (?, 0, 0, ?, ?, 0)",
+                    (user_id, seconds, today),
+                )
+            elif row[1] != today:
+                await conn.execute(
+                    "UPDATE daily_missions SET voice_seconds=?, chat_count=0, roll_count=0, date=?, free_rolls=0 WHERE user_id=?",
+                    (seconds, today, user_id),
+                )
+            else:
+                await conn.execute(
+                    "UPDATE daily_missions SET voice_seconds = voice_seconds + ? WHERE user_id = ?",
+                    (seconds, user_id),
+                )
+            await conn.commit()
 
     @app_commands.command(name="missions", description="Xem tiến độ nhiệm vụ hàng ngày và lượt roll free.")
     async def missions(self, interaction: discord.Interaction):
@@ -196,12 +193,10 @@ class MissionsCog(commands.Cog):
         await interaction.followup.send(embed=embed)
 
     async def use_free_roll(self, user_id: int) -> bool:
-        """Dùng 1 lượt roll free. Trả về True nếu dùng được."""
-        data = await self._get_or_create(user_id)
-        completed, chat_done, roll_done, voice_done = self._check_mission_complete(data)
+        """Dùng 1 lượt roll free. Tự động claim mission đã hoàn thành. Trả về True nếu dùng được."""
+        # Tự động claim free rolls từ mission đã hoàn thành
+        await self.claim_free_rolls(user_id)
 
-        # Tính free_rolls mới dựa trên mission hoàn thành chưa claim
-        earned = 0
         async with await self.bot.db_manager.connect() as conn:
             # Lấy free_rolls hiện tại
             async with conn.execute(

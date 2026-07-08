@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiosqlite
 from services.config_service import ConfigService
 
 class CollectionCog(commands.Cog):
@@ -34,7 +33,8 @@ class CollectionCog(commands.Cog):
                 field_text += f"`{index:02d}` ❓ ???\n"
             
             if index % 15 == 0 or index == len(roles):
-                embed.add_field(name=f"Danh sách từ {index-14 if index%15==0 else 30-(index%15)+1} đến {index}", value=field_text, inline=False)
+                start = index - 14 if index % 15 == 0 else ((index - 1) // 15) * 15 + 1
+                embed.add_field(name=f"Danh sách từ {start} đến {index}", value=field_text, inline=False)
                 field_text = ""
 
         await interaction.response.send_message(embed=embed)

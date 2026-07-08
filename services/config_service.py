@@ -30,6 +30,17 @@ class ConfigService:
     def get(self, key: str, default=None):
         return self.config.get(key, default)
 
+    def set(self, key: str, value):
+        self.config[key] = value
+
+    def save(self):
+        try:
+            with open("config/config.json", "w", encoding="utf-8") as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            logger.info("Đã lưu cấu hình vào config.json")
+        except Exception as e:
+            logger.error(f"Lỗi lưu cấu hình: {e}")
+
     def get_role_by_id(self, role_id: int) -> dict | None:
         return self.roles_dict.get(role_id)
 

@@ -50,13 +50,11 @@ class PlayerService:
                         """, (username, rolled_role["role_id"], rolled_role["name"],
                               next_lucky, now, now, user_id))
 
-                    # Thêm vào bộ sưu tập (Bỏ qua nếu đã tồn tại nhờ cấu trúc UNIQUE)
                     await cursor.execute("""
                         INSERT OR IGNORE INTO collections (user_id, role_id, obtained_at)
                         VALUES (?, ?, ?)
                     """, (user_id, rolled_role["role_id"], now))
 
-                    # Lưu vào lịch sử hệ thống
                     await cursor.execute("""
                         INSERT INTO history (user_id, role_id, rolled_at)
                         VALUES (?, ?, ?)
@@ -66,3 +64,18 @@ class PlayerService:
                 except Exception as e:
                     await conn.rollback()
                     raise e
+
+    # ==========================================
+    # CỔNG NẠP LƯỢT QUAY FREE HOÀN CHỈNH
+    # ==========================================
+    async def add_free_roll(self, user_id: int, amount: int = 1) -> None:
+        async with await self.db.connect() as conn:
+            try:
+                await conn.execute("ALTER TABLE players ADD COLUMN free_rolls INTEGER DEFAULT 0;")
+                await conn.commit()
+            except:
+                pass
+            await conn.execute("""
+                UPDATE players SET free_rolls = COALESCE(free_rolls, 0) + ? WHERE user_id = ?
+            """, (amount, user_id))
+            await conn.commit()

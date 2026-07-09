@@ -105,6 +105,40 @@ class PollView(discord.ui.View):
         except Exception: pass
 
 
+def calc_zodiac(birthday_str: str) -> str:
+    """Tự động tính cung hoàng đạo từ ngày sinh (định dạng dd/mm/yyyy)"""
+    try:
+        parts = birthday_str.replace("-", "/").replace(".", "/").split("/")
+        day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+        # Validate năm
+        now = datetime.now()
+        if year > now.year or year < 1900:
+            return None  # Năm không hợp lệ
+        if year == now.year:
+            # Check tháng/ngày không trong tương lai
+            from datetime import date
+            try:
+                if date(year, month, day) > now.date():
+                    return None
+            except ValueError:
+                return None  # Ngày không hợp lệ (VD: 30/02)
+        if (month == 3 and day >= 21) or (month == 4 and day <= 19): return "Bạch Dương ♈"
+        if (month == 4 and day >= 20) or (month == 5 and day <= 20): return "Kim Ngưu ♉"
+        if (month == 5 and day >= 21) or (month == 6 and day <= 20): return "Song Tử ♊"
+        if (month == 6 and day >= 21) or (month == 7 and day <= 22): return "Cự Giải ♋"
+        if (month == 7 and day >= 23) or (month == 8 and day <= 22): return "Sư Tử ♌"
+        if (month == 8 and day >= 23) or (month == 9 and day <= 22): return "Xử Nữ ♍"
+        if (month == 9 and day >= 23) or (month == 10 and day <= 22): return "Thiên Bình ♎"
+        if (month == 10 and day >= 23) or (month == 11 and day <= 21): return "Bọ Cạp ♏"
+        if (month == 11 and day >= 22) or (month == 12 and day <= 21): return "Nhân Mã ♐"
+        if (month == 12 and day >= 22) or (month == 1 and day <= 19): return "Ma Kết ♑"
+        if (month == 1 and day >= 20) or (month == 2 and day <= 18): return "Bảo Bình ♒"
+        if (month == 2 and day >= 19) or (month == 3 and day <= 20): return "Song Ngư ♓"
+    except:
+        pass
+    return None  # Không parse được
+
+
 class ServerProfileCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -135,6 +169,16 @@ class ServerProfileCog(commands.Cog):
             try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN spouse_id INTEGER DEFAULT NULL")
             except: pass
             try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN marriage_date TEXT DEFAULT NULL")
+            except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN love_points INTEGER DEFAULT 0")
+            except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN zodiac TEXT DEFAULT 'Chưa cập nhật 🔮'")
+            except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN social TEXT DEFAULT 'Chưa liên kết 📸'")
+            except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN status TEXT DEFAULT 'Đang tận hưởng cuộc sống ✨'")
+            except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN last_interact TEXT DEFAULT NULL")
             except: pass
             await conn.commit()
         
@@ -207,6 +251,9 @@ class ServerProfileCog(commands.Cog):
             search = content[4:].strip() if content.startswith("!so ") else (None if content == "!so" else content[3:].strip())
             await self.execute_hoso_view(message, search)
 
+        if content == "!vohuy":
+            await self.execute_hoso_view(message, search="9")
+
     async def execute_hoso_view(self, message: discord.Message, search: str = None):
         guild = message.guild
         target_user = None
@@ -231,27 +278,27 @@ class ServerProfileCog(commands.Cog):
         try:
             async with await self.bot.db_manager.connect() as conn:
                 if target_user:
-                    query = "SELECT id, bio, gender, birthday, location, bg_url, user_id, spouse_id FROM royal_profiles WHERE user_id = ?"
+                    query = "SELECT id, bio, gender, birthday, location, bg_url, user_id, spouse_id, love_points, social, status FROM royal_profiles WHERE user_id = ?"
                     param = (target_user.id,)
                 else:
-                    query = "SELECT id, bio, gender, birthday, location, bg_url, user_id, spouse_id FROM royal_profiles WHERE id = ?"
+                    query = "SELECT id, bio, gender, birthday, location, bg_url, user_id, spouse_id, love_points, social, status FROM royal_profiles WHERE id = ?"
                     param = (profile_id,)
-                async with conn.execute(query, param) as cursor: 
+                async with conn.execute(query, param) as cursor:
                     row = await cursor.fetchone()
 
             if not row:
                 if target_user:
-                    if target_user == message.author: 
-                        await message.channel.send("❌ Cậu chưa được cấp số hồ sơ! Liên hệ Admin để phê duyệt.")
-                    else: 
+                    if target_user == message.author:
+                        await message.channel.send("❌ Cậu chưa có hồ sơ cư dân! Hãy vào kênh xác minh và hoàn thành bài test để được cấp hồ sơ tự động nhé.")
+                    else:
                         await message.channel.send("❌ Thành viên này chưa được đăng ký sổ cư dân!")
                 else: 
                     display_id = f"#{profile_id:03d}" if profile_id is not None else search
                     await message.channel.send(f"❌ Mã số hồ sơ `{display_id}` chưa tồn tại!")
                 return
 
-            p_id, bio, gender, birthday, location, bg_url, stored_user_id, spouse_id = row
-            
+            p_id, bio, gender, birthday, location, bg_url, stored_user_id, spouse_id, love_pts, social, status_text = row
+
             try:
                 display_user = guild.get_member(stored_user_id) or await self.bot.fetch_user(stored_user_id)
             except Exception:
@@ -259,18 +306,28 @@ class ServerProfileCog(commands.Cog):
 
             embed = discord.Embed(color=discord.Color.from_rgb(43, 45, 49))
             embed.set_author(name="R O Y A L   C I T Y   I D E N T I T Y   C A R D", icon_url=guild.icon.url if guild.icon else None)
-            
+
             user_mention = display_user.mention if display_user else f"<@{stored_user_id}>"
-            spouse_text = f"<@{spouse_id}>" if spouse_id else "`Độc thân 💔`"
+            if spouse_id:
+                # Lấy tên Discord thật của tri kỷ (để tìm kiếm được)
+                spouse_member = guild.get_member(spouse_id)
+                spouse_name = spouse_member.name if spouse_member else f"ID:{spouse_id}"
+                pts_display = f"`💕 {love_pts or 0} điểm`"
+                spouse_text = f"**{spouse_name}** {pts_display}"
+            else:
+                spouse_text = "`Độc thân 💔`"
             
             embed.description = (
                 f"## ⚜️ SỐ HỒ SƠ: `#{p_id:03d}`\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"> 👤 **Chủ hộ:** {user_mention}\n"
                 f"> 💍 **Tri kỷ:** {spouse_text}\n"
+                f"> 💬 **Status:** *{status_text}*\n"
                 f"> ⚧️ **Giới tính:** `{gender}`\n"
                 f"> 🎂 **Sinh nhật:** `{birthday}`\n"
+                f"> 🔮 **Cung hoàng đạo:** `{calc_zodiac(birthday) or 'Chưa cập nhật 🔮'}`\n"
                 f"> 📍 **Sinh sống:** `{location}`\n"
+                f"> 📸 **Social:** {'[Nhấn vào đây](' + social + ')' if social.startswith('http') else social}\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💬 **TIỂU SỬ CƯ DÂN:**\n*{bio}*\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -553,6 +610,275 @@ class ServerProfileCog(commands.Cog):
         await interaction.channel.send(f"💔 Cư dân {interaction.user.mention} và <@{spouse_id}> đã ly hôn.")
         await interaction.followup.send("✅ Đã xử lý thủ tục ly hôn thành công.", ephemeral=True)
 
+    @app_commands.command(name="ket_hon", description="Cưới trực tiếp 2 cư dân không cần cầu hôn (Chỉ Admin)")
+    @app_commands.describe(nguoi_a="Cư dân thứ nhất", nguoi_b="Cư dân thứ hai")
+    async def ket_hon(self, interaction: discord.Interaction, nguoi_a: discord.Member, nguoi_b: discord.Member):
+        await interaction.response.defer(ephemeral=True)
+        if interaction.user.id != ADMIN_ID:
+            return await interaction.followup.send("❌ Chỉ Admin tối cao mới có quyền tổ chức hôn lễ!", ephemeral=True)
+        if nguoi_a == nguoi_b or nguoi_a.bot or nguoi_b.bot:
+            return await interaction.followup.send("❌ Đối tượng kết hôn không hợp lệ!", ephemeral=True)
+
+        async with await self.bot.db_manager.connect() as conn:
+            async with conn.execute("SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (nguoi_a.id,)) as c1:
+                p1 = await c1.fetchone()
+            async with conn.execute("SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (nguoi_b.id,)) as c2:
+                p2 = await c2.fetchone()
+            if not p1: return await interaction.followup.send(f"❌ {nguoi_a.mention} chưa có hồ sơ cư dân!", ephemeral=True)
+            if not p2: return await interaction.followup.send(f"❌ {nguoi_b.mention} chưa có hồ sơ cư dân!", ephemeral=True)
+            if p1[0] or p2[0]:
+                return await interaction.followup.send("❌ Một trong hai người đã kết hôn rồi!", ephemeral=True)
+
+            now = datetime.utcnow().isoformat()
+            await conn.execute("UPDATE royal_profiles SET spouse_id = ?, marriage_date = ? WHERE user_id = ?", (nguoi_b.id, now, nguoi_a.id))
+            await conn.execute("UPDATE royal_profiles SET spouse_id = ?, marriage_date = ? WHERE user_id = ?", (nguoi_a.id, now, nguoi_b.id))
+            await conn.commit()
+
+        embed = discord.Embed(
+            title="💒 HÔN LỄ HOÀNG GIA 💒",
+            description=f"Dưới sự chứng kiến của Đấng Tối Cao...\n\n"
+                        f"💍 {nguoi_a.mention} và {nguoi_b.mention}\n"
+                        f"✨ Nay đã chính thức trở thành **Tri Kỷ**!\n\n"
+                        f"*Chúc hai con trăm năm hạnh phúc, mãi mãi bên nhau!* 🕊️",
+            color=discord.Color.from_rgb(255, 105, 180)
+        )
+        await interaction.channel.send(embed=embed)
+        await interaction.followup.send("✅ Hôn lễ đã được cử hành thành công!", ephemeral=True)
+
+    # ==========================================
+    # GHÉP ĐÔI TỰ ĐỘNG
+    # ==========================================
+    @app_commands.command(name="ghep_doi", description="Ghép đôi ngẫu nhiên với một cư dân độc thân khác 💘")
+    async def ghep_doi(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        import random
+
+        async with await self.bot.db_manager.connect() as conn:
+            async with conn.execute("SELECT id, gender, spouse_id FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                my_profile = await cursor.fetchone()
+            if not my_profile:
+                return await interaction.followup.send("❌ Cậu chưa có hồ sơ cư dân! Vào kênh xác minh làm quiz nhé.", ephemeral=True)
+            my_id, my_gender, my_spouse = my_profile
+            if my_spouse:
+                return await interaction.followup.send("❌ Cậu đã có tri kỷ rồi còn đòi ghép đôi gì nữa! Có tật cắm sừng à? 🚩", ephemeral=True)
+
+            # Chỉ cho ghép nếu giới tính rõ ràng (Nam/Nữ)
+            if "nam" not in my_gender.lower() and "nữ" not in my_gender.lower():
+                return await interaction.followup.send("❌ Cậu cần cập nhật giới tính thành `Nam` hoặc `Nữ` trong hồ sơ mới ghép đôi được nha! Dùng `/sua_hoso gioi_tinh:Nam` nhé.", ephemeral=True)
+
+            opposite = "Nữ" if "nam" in my_gender.lower() else "Nam"
+            # Chỉ ghép với người có giới tính Nam hoặc Nữ rõ ràng
+            async with conn.execute(
+                "SELECT user_id, gender FROM royal_profiles WHERE spouse_id IS NULL AND user_id != ? AND LOWER(gender) LIKE ? ORDER BY RANDOM() LIMIT 1",
+                (interaction.user.id, f"%{opposite.lower()}%")
+            ) as cursor:
+                match_row = await cursor.fetchone()
+
+        if not match_row:
+            return await interaction.followup.send("😢 Hiện tại không tìm thấy cư dân độc thân nào phù hợp... Hẹn cậu lúc khác nhé!", ephemeral=True)
+
+        match_uid, match_gender = match_row
+        match_member = interaction.guild.get_member(match_uid)
+        match_name = match_member.display_name if match_member else f"ID:{match_uid}"
+
+        embed = discord.Embed(
+            title="💘 GHÉP ĐÔI HOÀNG GIA 💘",
+            description=(
+                f"🔮 **Định mệnh đã đưa hai tâm hồn cô đơn đến với nhau!**\n\n"
+                f"{interaction.user.mention} `{my_gender}`\n"
+                f"💞 **x** 💞\n"
+                f"{f'<@{match_uid}>' if match_member else match_name} `{match_gender}`\n\n"
+                f"💡 *Hai bạn hợp nhau đấy! Dùng `/marry` để cầu hôn nếu đã ưng nha!* 💍"
+            ),
+            color=discord.Color.from_rgb(255, 105, 180)
+        )
+        embed.set_footer(text="Bot mai mối Royal City 💕")
+        await interaction.followup.send(embed=embed)
+
+    # ==========================================
+    # TƯƠNG TÁC TÌNH CẢM TRI KỶ
+    # ==========================================
+    async def _get_spouse_id(self, user_id: int) -> int | None:
+        async with await self.bot.db_manager.connect() as conn:
+            async with conn.execute("SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (user_id,)) as cursor:
+                row = await cursor.fetchone()
+        return row[0] if row else None
+
+    async def _send_couple_interaction(self, interaction: discord.Interaction, action: str, emoji: str, messages: list):
+        """Gửi tương tác tình cảm giữa 2 tri kỷ"""
+        await interaction.response.defer()
+        spouse_id = await self._get_spouse_id(interaction.user.id)
+        if not spouse_id:
+            return await interaction.followup.send("❌ Cậu còn chưa có tri kỷ mà đòi tương tác gì! Kiếm người yêu đi rồi quay lại nha! 💔", ephemeral=True)
+
+        # Kiểm tra rate limit (60s giữa các lần +điểm)
+        now = datetime.utcnow().isoformat()
+        gain_points = True
+        async with await self.bot.db_manager.connect() as conn:
+            async with conn.execute("SELECT last_interact FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                row = await cursor.fetchone()
+            if row and row[0]:
+                try:
+                    last_time = datetime.fromisoformat(row[0])
+                    if (datetime.utcnow() - last_time).total_seconds() < 86400:
+                        gain_points = False  # Đang cooldown, không +điểm
+                except:
+                    pass
+
+            if gain_points:
+                await conn.execute("UPDATE royal_profiles SET love_points = love_points + 1 WHERE user_id IN (?, ?)", (interaction.user.id, spouse_id))
+            # Cập nhật timestamp cho cả 2
+            await conn.execute("UPDATE royal_profiles SET last_interact = ? WHERE user_id IN (?, ?)", (now, interaction.user.id, spouse_id))
+            await conn.commit()
+            async with conn.execute("SELECT love_points FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                row = await cursor.fetchone()
+            love_pts = row[0] if row else 0
+
+        import random
+        msg = random.choice(messages).format(
+            author=interaction.user.mention,
+            spouse=f"<@{spouse_id}>"
+        )
+
+        if action == "hôn":
+            gif_url = "https://media.tenor.com/4Beyond2TdfkAAAAi/peach-goma-peach-and-goma.gif"
+        elif action == "ôm":
+            gif_url = "https://media.tenor.com/FzqKvxsIcnsAAAAi/peach-goma-peach-and-goma.gif"
+        elif action == "nắm tay":
+            gif_url = "https://media.tenor.com/UgLn4FS2r6QAAAAi/peach-goma-love.gif"
+        elif action == "thơm má":
+            gif_url = "https://media.tenor.com/yRVcZ4BpIhAAAAAi/peach-goma-peach-and-goma.gif"
+        elif action == "cưng chiều":
+            gif_url = "https://media.tenor.com/eAL7RnwQb9AAAAAi/peach-goma-peach-and-goma.gif"
+        elif action == "yêu thương":
+            gif_url = "https://media.tenor.com/vpV5gIqyXqIAAAAi/peach-cat-hug.gif"
+        else:
+            gif_url = "https://media.tenor.com/vpV5gIqyXqIAAAAi/peach-cat-hug.gif"
+
+        embed = discord.Embed(
+            title=f"{emoji} {action.upper()} {emoji}",
+            description=msg,
+            color=discord.Color.from_rgb(255, 105, 180)
+        )
+        embed.set_image(url=gif_url)
+        footer_text = f"💕 Điểm tri kỷ: {love_pts}"
+        if gain_points:
+            footer_text += " | +1 điểm"
+        else:
+            footer_text += " | (cooldown 24h - chưa +điểm)"
+        embed.set_footer(text=footer_text)
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="hon_tri_ky", description="Hôn tri kỷ của bạn 💋")
+    async def hon_tri_ky(self, interaction: discord.Interaction):
+        messages = [
+            "{author} nhẹ nhàng đặt một nụ hôn lên môi {spouse}... 💋 Chu choa ngọt ngào quá!",
+            "{author} bất ngờ hôn trộm {spouse} một cái rồi đỏ mặt quay đi! 🙈",
+            "{author} ôm lấy mặt {spouse} và trao một nụ hôn nồng cháy! 🔥 Cả server đang nhìn kìa!",
+            "{author} thì thầm 'Anh yêu em' rồi hôn {spouse} thật dịu dàng... 💕"
+        ]
+        await self._send_couple_interaction(interaction, "hôn", "💋", messages)
+
+    @app_commands.command(name="om_tri_ky", description="Ôm tri kỷ của bạn thật chặt 🤗")
+    async def om_tri_ky(self, interaction: discord.Interaction):
+        messages = [
+            "{author} chạy đến ôm chầm lấy {spouse} thật chặt! Đừng buông tay ra nhé! 🤗",
+            "{author} vòng tay ôm {spouse} từ phía sau... Ấm áp quá đi thôi! 🥰",
+            "{author} thấy {spouse} đang buồn liền ôm vào lòng an ủi... 💚 Ngoan, có anh đây rồi!",
+            "{author} và {spouse} ôm nhau thật lâu, quên hết mọi muộn phiền... ✨"
+        ]
+        await self._send_couple_interaction(interaction, "ôm", "🤗", messages)
+
+    @app_commands.command(name="nam_tay", description="Nắm tay tri kỷ dạo phố 🫶")
+    async def nam_tay(self, interaction: discord.Interaction):
+        messages = [
+            "{author} nhẹ nhàng nắm lấy tay {spouse}, tay trong tay dạo bước... 🫶",
+            "{author} đan những ngón tay vào tay {spouse}... Tay nắm tay, tim chạm tim! 💞",
+            "{author} nắm chặt tay {spouse} không rời... 'Đừng buông tay anh nhé!' 🥺",
+            "{author} và {spouse} tay trong tay dạo quanh Royal City, ngọt lịm cả server! 🍬"
+        ]
+        await self._send_couple_interaction(interaction, "nắm tay", "🫶", messages)
+
+    @app_commands.command(name="thom_ma", description="Thơm má tri kỷ 😚")
+    async def thom_ma(self, interaction: discord.Interaction):
+        messages = [
+            "{author} thơm nhẹ lên má {spouse} một cái... Chụt! 😚 Dễ thương xỉu!",
+            "{author} bất ngờ thơm má {spouse} rồi cười khúc khích... Hư quá à! 😳",
+            "{author} chu môi thơm 'chụt chụt' lên má {spouse} liên tục! Thôi đủ rồi bây ơi! 😘",
+            "{author} nhẹ nhàng thơm má {spouse} và thì thầm 'Cảm ơn em đã đến bên anh'... 💗"
+        ]
+        await self._send_couple_interaction(interaction, "thơm má", "😚", messages)
+
+    @app_commands.command(name="cung_chieu", description="Cưng chiều tri kỷ của bạn 🥺💕")
+    async def cung_chieu(self, interaction: discord.Interaction):
+        messages = [
+            "{author} xoa đầu {spouse} cưng chiều... Ngoan quá, giỏi quá! 🥺💕",
+            "{author} đút {spouse} ăn miếng bánh ngọt, còn lau miệng cho nữa... Chiều quá! 🍰",
+            "{author} ngồi gỡ rối tóc cho {spouse} thật nhẹ nhàng... Tình bể bình luôn! 🎀",
+            "{author} bế {spouse} lên và nói 'Cưng của anh đây này!' Lực sĩ tình yêu! 💪"
+        ]
+        await self._send_couple_interaction(interaction, "cưng chiều", "🥺", messages)
+
+    @app_commands.command(name="yeu_thuong", description="Thể hiện tình yêu ngẫu nhiên với tri kỷ 💖")
+    async def yeu_thuong(self, interaction: discord.Interaction):
+        import random
+        actions = [
+            ("hôn", "💋", [
+                "{author} hôn lên trán {spouse} và nói 'Anh yêu em nhất trên đời!' 💖",
+                "{author} trao {spouse} một nụ hôn bất ngờ! Ngọt như mật ong vậy! 🍯"
+            ]),
+            ("ôm", "🤗", [
+                "{author} ôm {spouse} thật lâu không muốn rời... Thời gian ngừng trôi! ⏰",
+                "{author} kéo {spouse} vào lòng ôm thật chặt... Về nhà với anh thôi! 🏠"
+            ]),
+            ("cưng chiều", "🥺", [
+                "{author} véo má {spouse} cưng chiều... Béo quá à, đáng yêu quá! 🥺",
+                "{author} mua trà sữa cho {spouse}... Đúng vị em thích này! 🧋"
+            ]),
+            ("nắm tay", "🫶", [
+                "{author} và {spouse} nắm tay nhau, cùng ngắm hoàng hôn... Lãng mạn quá! 🌅",
+                "{author} siết nhẹ tay {spouse}, trao nhau ánh mắt trìu mến... 💞"
+            ]),
+            ("lãng mạn", "🌹", [
+                "{author} tặng {spouse} một bó hoa hồng đỏ thắm... Lãng mạn hết nấc! 🌹",
+                "{author} viết một bài thơ tặng {spouse}... Anh yêu em nhiều lắm! ✍️"
+            ])
+        ]
+        action, emoji, messages = random.choice(actions)
+        await self._send_couple_interaction(interaction, action, emoji, messages)
+
+    @app_commands.command(name="ky_niem", description="Xem ngày kỷ niệm và đếm ngày bên tri kỷ 📅")
+    async def ky_niem(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        async with await self.bot.db_manager.connect() as conn:
+            async with conn.execute("SELECT spouse_id, marriage_date, love_points FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                row = await cursor.fetchone()
+        if not row or not row[0]:
+            return await interaction.followup.send("❌ Cậu còn chưa có tri kỷ thì kỷ niệm gì! 💔", ephemeral=True)
+
+        spouse_id, marriage_date, love_pts = row
+        try:
+            date_obj = datetime.fromisoformat(marriage_date)
+            days_together = (datetime.utcnow() - date_obj).days
+            date_str = date_obj.strftime("%d/%m/%Y lúc %H:%M")
+        except:
+            date_str = marriage_date
+            days_together = "???"
+
+        embed = discord.Embed(
+            title="💝 KỶ NIỆM TRI KỶ 💝",
+            description=(
+                f"👤 **Cư dân:** {interaction.user.mention}\n"
+                f"💍 **Tri kỷ:** <@{spouse_id}>\n"
+                f"💕 **Điểm tri kỷ:** `{love_pts or 0} điểm`\n"
+                f"📅 **Ngày kết đôi:** `{date_str}`\n"
+                f"⏳ **Đã bên nhau:** `{days_together}` ngày!\n\n"
+                f"*Chúc hai bạn mãi mãi hạnh phúc!* 🕊️💕"
+            ),
+            color=discord.Color.from_rgb(255, 105, 180)
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
     @app_commands.command(name="cap_hoso", description="Cấp số hiệu hồ sơ cư dân cho một thành viên (Chỉ Admin)")
     async def cap_hoso(self, interaction: discord.Interaction, user: discord.Member):
         await interaction.response.defer(ephemeral=True)
@@ -570,12 +896,16 @@ class ServerProfileCog(commands.Cog):
         await interaction.followup.send("✅ Cấp thành công.", ephemeral=True)
 
     @app_commands.command(name="sua_hoso", description="Chỉnh sửa thông tin thẻ cư dân của bạn")
-    async def hoso_edit(self, interaction: discord.Interaction, tieu_su: str = None, gioi_tinh: str = None, ngay_sinh: str = None, den_tu: str = None, tai_anh_tu_may: discord.Attachment = None, link_anh_ngoai: str = None):
+    async def hoso_edit(self, interaction: discord.Interaction,
+                         tieu_su: str = None, gioi_tinh: str = None, ngay_sinh: str = None,
+                         den_tu: str = None, social: str = None,
+                         status: str = None,
+                         tai_anh_tu_may: discord.Attachment = None, link_anh_ngoai: str = None):
         await interaction.response.defer(ephemeral=True)
         async with await self.bot.db_manager.connect() as conn:
-            async with conn.execute("SELECT bio, gender, birthday, location, bg_url FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor: row = await cursor.fetchone()
+            async with conn.execute("SELECT bio, gender, birthday, location, bg_url, social, status FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor: row = await cursor.fetchone()
         if not row: return await interaction.followup.send("❌ Cậu chưa có tên trong sổ cư dân!", ephemeral=True)
-        current_bio, current_gender, current_birthday, current_location, current_bg_url = row
+        current_bio, current_gender, current_birthday, current_location, current_bg_url, current_social, current_status = row
         chosen_bg_url = current_bg_url
         if tai_anh_tu_may is not None:
             if tai_anh_tu_may.content_type and "image" in tai_anh_tu_may.content_type: chosen_bg_url = tai_anh_tu_may.url
@@ -584,9 +914,16 @@ class ServerProfileCog(commands.Cog):
         new_bio = tieu_su if tieu_su is not None else current_bio
         new_gender = gioi_tinh if gioi_tinh is not None else current_gender
         new_birthday = ngay_sinh if ngay_sinh is not None else current_birthday
+        # Validate ngày sinh
+        if ngay_sinh is not None and ngay_sinh != "Chưa cập nhật 📅":
+            if calc_zodiac(ngay_sinh) is None:
+                return await interaction.followup.send("❌ Ngày sinh không hợp lệ! Nhập đúng `dd/mm/yyyy`, năm từ 1900 đến hiện tại, không được trong tương lai. VD: `26/08/2000`", ephemeral=True)
         new_location = den_tu if den_tu is not None else current_location
+        new_social = social if social is not None else current_social
+        new_status = status if status is not None else current_status
         async with await self.bot.db_manager.connect() as conn:
-            await conn.execute("UPDATE royal_profiles SET bio = ?, gender = ?, birthday = ?, location = ?, bg_url = ?, updated_at = ? WHERE user_id = ?", (new_bio, new_gender, new_birthday, new_location, chosen_bg_url, datetime.utcnow().isoformat(), interaction.user.id))
+            await conn.execute("UPDATE royal_profiles SET bio = ?, gender = ?, birthday = ?, location = ?, bg_url = ?, social = ?, status = ?, updated_at = ? WHERE user_id = ?",
+                              (new_bio, new_gender, new_birthday, new_location, chosen_bg_url, new_social, new_status, datetime.utcnow().isoformat(), interaction.user.id))
             await conn.commit()
         await interaction.followup.send("🎉 **Cập nhật hồ sơ thành công!**", ephemeral=True)
 

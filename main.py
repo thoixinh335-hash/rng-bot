@@ -15,8 +15,11 @@ from services.announcement_service import AnnouncementService
 from services.leaderboard_service import LeaderboardService
 from services.season_service import SeasonService
 
+# Base directory = thư mục chứa main.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Cấu hình logging kép chuyên nghiệp
-os.makedirs("logs", exist_ok=True)
+os.makedirs(os.path.join(BASE_DIR, "logs"), exist_ok=True)
 logger = logging.getLogger("rng_bot")
 logger.setLevel(logging.INFO)
 
@@ -28,12 +31,12 @@ stream_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
 
 # File Handler lưu toàn bộ log chạy trực tiếp
-latest_handler = logging.FileHandler("logs/latest.log", encoding="utf-8", mode="w")
+latest_handler = logging.FileHandler(os.path.join(BASE_DIR, "logs", "latest.log"), encoding="utf-8", mode="w")
 latest_handler.setFormatter(formatter)
 logger.addHandler(latest_handler)
 
 # File Handler riêng biệt cho các lỗi hệ thống nghiêm trọng
-error_handler = logging.FileHandler("logs/errors.log", encoding="utf-8", mode="a")
+error_handler = logging.FileHandler(os.path.join(BASE_DIR, "logs", "errors.log"), encoding="utf-8", mode="a")
 error_handler.setLevel(logging.ERROR)
 error_handler.setFormatter(formatter)
 logger.addHandler(error_handler)
@@ -165,7 +168,7 @@ bot = RNGBot()
 # ==========================================
 # SINGLE-INSTANCE LOCK: Chống chạy trùng bot
 # ==========================================
-LOCK_FILE = "bot.lock"
+LOCK_FILE = os.path.join(BASE_DIR, "bot.lock")
 
 def check_single_instance():
     """Kiểm tra và khóa chống chạy trùng"""

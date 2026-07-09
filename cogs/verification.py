@@ -10,175 +10,171 @@ ADMIN_ID = 1119820359500304396
 VERIFIED_ROLE_ID = 1524357636286578718
 DEFAULT_BANNER = "https://images.unsplash.com/photo-1519501025264-65ba15a82390?q=80&w=1000&auto=format&fit=crop"
 
-QUIZ_QUESTIONS = [
-    {
-        "question": "Hành vi nào dưới đây bị cấm tuyệt đối tại các kênh chat của Royal City?",
-        "options": [
-            "A. Gửi ảnh meme hài hước",
-            "B. Tag Admin để báo cáo lỗi hệ thống",
-            "C. Spam từ ngữ độc hại, quảng cáo hoặc xúc phạm người khác",
-            "D. Chúc mọi người trong server buổi tối tốt lành"
-        ],
-        "correct_index": 2
-    },
-    {
-        "question": "Hãy tính nhẩm nhanh để chứng minh cậu không phải là Bot tự động: 5 + 3 bằng bao nhiêu?",
-        "options": [
-            "A. Bằng 2",
-            "B. Bằng 7",
-            "C. Bằng 8",
-            "D. Bằng 15"
-        ],
-        "correct_index": 2
-    },
-    {
-        "question": "Nếu bạn vô server để partner thì hãy sài lệnh /partner và chọn bot của server, bot sẽ tự động làm hết. Nếu không phải vào để partner thì hãy bỏ qua đoạn này nha",
-        "options": [
-            "A. Ok",
-            "B. Không",
-            "C. Không Đồng Ý"
-        ],
-        "correct_index": 0
-    }
+GENDER_OPTIONS = [
+    {"label": "Nam 💙", "value": "nam", "gender": "Nam"},
+    {"label": "Nữ 🩷", "value": "nu", "gender": "Nữ"},
+    {"label": "Khác 💜", "value": "khac", "gender": "Bí mật 🤫"},
 ]
 
-class VerificationQuizView(discord.ui.View):
-    def __init__(self, member: discord.Member, guild: discord.Guild):
-        super().__init__(timeout=600)
+# Game + Role ID tương ứng (tự gán role game cho user)
+GAME_OPTIONS = [
+    {"label": "🚫 Không chơi game", "value": "none", "role_id": 1503825065970499698},
+    {"label": "<:lienquan:1524696458992029807> Liên Quân Mobile", "value": "lienquan", "role_id": 1503825048039981208},
+    {"label": "<:valorant:1524695522869379072> Valorant", "value": "valorant", "role_id": 1503825041262116966},
+    {"label": "<:roblox:1524695525968973825> Roblox", "value": "roblox", "role_id": 1503825045045252136},
+    {"label": "<:minecraft:1524695638833631242> Minecraft", "value": "minecraft", "role_id": 1503825052108587142},
+    {"label": "<:tft:1524695534076428429> TFT", "value": "tft", "role_id": 1503825055832870963},
+    {"label": "<:freefire:1524695536547008594> Free Fire", "value": "freefire", "role_id": 1503825059460939877},
+    {"label": "<:csgo:1524695542087815180> CS:GO / CS2", "value": "csgo", "role_id": 1503825062921240667},
+    {"label": "🎮 Game khác...", "value": "other", "role_id": 1503825065970499698},
+]
+
+
+class VerificationStepView(discord.ui.View):
+    """Xác minh 2 bước: giới tính -> game"""
+    def __init__(self, bot, member: discord.Member, guild: discord.Guild):
+        super().__init__(timeout=300)
+        self.bot = bot
         self.member = member
         self.guild = guild
-        self.current_question_idx = 0
-        self.score = 0
-        self.update_dropdown_menu()
+        self.chosen_gender = None
+        self.step = 1  # 1=giới tính, 2=game
+        self._build_step1()
 
-    def update_dropdown_menu(self):
+    def _build_step1(self):
         self.clear_items()
-        if self.current_question_idx >= len(QUIZ_QUESTIONS):
-            return
-        q_data = QUIZ_QUESTIONS[self.current_question_idx]
-        select_options = []
-        for i, opt in enumerate(q_data["options"]):
-            select_options.append(discord.SelectOption(label=opt[:100], value=str(i)))
+        options = [discord.SelectOption(label=g["label"], value=g["value"]) for g in GENDER_OPTIONS]
         select_menu = discord.ui.Select(
-            placeholder="Chọn đáp án phù hợp bên dưới...",
-            options=select_options,
-            custom_id="verification_dropdown_select"
+            placeholder="👆 Bước 1/2: Chọn giới tính của bạn...",
+            options=options,
+            custom_id="verify_step1_gender"
         )
-        select_menu.callback = self.dropdown_callback
+        select_menu.callback = self.gender_callback
         self.add_item(select_menu)
 
-    async def dropdown_callback(self, interaction: discord.Interaction):
-        chosen_val = int(interaction.data['values'][0])
-        correct_idx = QUIZ_QUESTIONS[self.current_question_idx]["correct_index"]
-        if chosen_val == correct_idx:
-            self.score += 1
-        self.current_question_idx += 1
-        self.update_dropdown_menu()
-        embed = self.make_question_embed()
-        if embed:
-            await interaction.response.edit_message(embed=embed, view=self)
-        else:
-            await interaction.response.edit_message(content="🔄 Đang xử lý...", embed=None, view=None)
-            await self.apply_verification_result(interaction)
+    def _build_step2(self):
+        self.clear_items()
+        options = [discord.SelectOption(label=g["label"], value=g["value"]) for g in GAME_OPTIONS]
+        select_menu = discord.ui.Select(
+            placeholder="🎮 Bước 2/2: Bạn hay chơi game gì nhất?",
+            options=options,
+            custom_id="verify_step2_game"
+        )
+        select_menu.callback = self.game_callback
+        self.add_item(select_menu)
 
-    def make_question_embed(self):
-        if self.current_question_idx >= len(QUIZ_QUESTIONS):
-            return None
-        q_data = QUIZ_QUESTIONS[self.current_question_idx]
+    async def gender_callback(self, interaction: discord.Interaction):
+        chosen_value = interaction.data['values'][0]
+        self.chosen_gender = next((g for g in GENDER_OPTIONS if g["value"] == chosen_value), None)
+        if not self.chosen_gender:
+            return await interaction.response.edit_message(content="❌ Lỗi!", embed=None, view=None)
+
+        self.step = 2
+        self._build_step2()
+        embed = self._make_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def game_callback(self, interaction: discord.Interaction):
+        chosen_value = interaction.data['values'][0]
+        chosen_game = next((g for g in GAME_OPTIONS if g["value"] == chosen_value), None)
+        if not chosen_game:
+            return await interaction.response.edit_message(content="❌ Lỗi!", embed=None, view=None)
+
+        await interaction.response.edit_message(content="⏳ Đang xử lý xác minh...", embed=None, view=None)
+
+        # Cấp Verified Role
+        verified_role = self.guild.get_role(VERIFIED_ROLE_ID)
+        if not verified_role:
+            return await interaction.edit_original_response(content=f"❌ Không tìm thấy Role ID `{VERIFIED_ROLE_ID}`!")
+
+        try:
+            await self.member.add_roles(verified_role, reason="Hoàn thành xác minh danh tính.")
+        except discord.Forbidden:
+            return await interaction.edit_original_response(content="❌ Bot thiếu quyền cấp Role!")
+
+        # Cấp Role Game nếu có
+        game_role_name = None
+        if chosen_game["role_id"]:
+            game_role = self.guild.get_role(chosen_game["role_id"])
+            if game_role:
+                try:
+                    await self.member.add_roles(game_role, reason=f"Chọn game: {chosen_game['label']}")
+                    game_role_name = game_role.name
+                except discord.Forbidden:
+                    pass
+
+        # Tạo hồ sơ với giới tính đã chọn
+        profile_id = None
+        try:
+            async with await self.bot.db_manager.connect() as conn:
+                async with conn.execute("SELECT id FROM royal_profiles WHERE user_id = ?", (self.member.id,)) as cursor:
+                    exists = await cursor.fetchone()
+                if not exists:
+                    now = datetime.utcnow().isoformat()
+                    cursor = await conn.execute(
+                        "INSERT INTO royal_profiles (user_id, gender, updated_at) VALUES (?, ?, ?)",
+                        (self.member.id, self.chosen_gender["gender"], now)
+                    )
+                    await conn.commit()
+                    profile_id = cursor.lastrowid
+                    logger.info(f"✅ Đã tự tạo hồ sơ #{profile_id} cho {self.member.name}")
+        except Exception as e:
+            logger.error(f"Lỗi tạo hồ sơ: {e}")
+
+        desc = (
+            f"🏰 **Chào mừng đến với Royal City!**\n\n"
+            f"👤 **Cư dân:** {self.member.mention}\n"
+            f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n"
+            f"🎮 **Game:** `{chosen_game['label']}`\n"
+            f"🛡️ **Role:** {verified_role.mention}\n"
+        )
+        if game_role_name:
+            desc += f"🎯 **Role Game:** `{game_role_name}`\n"
+        desc += (
+            + (f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo tự động!" if profile_id else "⚠️ Có lỗi khi tạo hồ sơ, hãy báo Admin.")
+        )
+
+        success_embed = discord.Embed(
+            title="✨ Xác Minh Thành Công! ✨",
+            description=desc,
+            color=discord.Color.green()
+        )
+        success_embed.set_footer(text="Hệ thống xác minh tự động Royal City 🏙️")
+        await interaction.edit_original_response(content=None, embed=success_embed, view=None)
+
+    def _make_embed(self):
+        if self.step == 1:
+            desc = "🏰 **Chào mừng đến với Royal City!**\n\n👉 **Bước 1/2:** Chọn giới tính của bạn bên dưới."
+        else:
+            desc = (
+                f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n\n"
+                f"👉 **Bước 2/2:** Bạn hay chơi game gì nhất?"
+            )
         embed = discord.Embed(
-            title="❓ Câu hỏi xác minh",
-            description=f"### {q_data['question']}",
+            title="🧚‍♀️ Xác Minh Danh Tính 🧚‍♀️",
+            description=desc,
             color=discord.Color.from_rgb(88, 101, 242)
         )
-        embed.set_footer(text=f"Tiến trình: {self.current_question_idx + 1}/{len(QUIZ_QUESTIONS)}")
+        embed.set_footer(text=f"Bước {self.step}/2")
         return embed
-
-    async def apply_verification_result(self, interaction: discord.Interaction):
-        total_q = len(QUIZ_QUESTIONS)
-        if self.score == total_q:
-            role = self.guild.get_role(VERIFIED_ROLE_ID)
-            if role:
-                try:
-                    await self.member.add_roles(role, reason="Hoàn thành xuất sắc bài test đầu vào.")
-
-                    # Tự động tạo hồ sơ cư dân
-                    try:
-                        async with await self.bot.db_manager.connect() as conn:
-                            async with conn.execute("SELECT id FROM royal_profiles WHERE user_id = ?", (self.member.id,)) as cursor:
-                                exists = await cursor.fetchone()
-                            if not exists:
-                                now = datetime.utcnow().isoformat()
-                                cursor = await conn.execute(
-                                    "INSERT INTO royal_profiles (user_id, updated_at) VALUES (?, ?)",
-                                    (self.member.id, now)
-                                )
-                                await conn.commit()
-                                new_id = cursor.lastrowid
-                                logger.info(f"✅ Đã tự tạo hồ sơ #{new_id} cho {self.member.name}")
-                    except Exception as e:
-                        logger.error(f"Lỗi tạo hồ sơ: {e}")
-
-                    success_embed = discord.Embed(
-                        title="✨ Xác Minh Thành Công! ✨",
-                        description=f"Đã hoàn thành xác minh **{self.score}/{total_q}** câu hỏi!\n"
-                                    f"Vai trò **{role.name}** đã được kích hoạt.\n"
-                                    f"Hồ sơ cư dân đã được tạo tự động!",
-                        color=discord.Color.green()
-                    )
-                    await interaction.message.edit(content=None, embed=success_embed, view=None)
-                except discord.Forbidden:
-                    await interaction.message.edit(content="❌ Bot thiếu quyền cấp Role!", embed=None, view=None)
-            else:
-                await interaction.message.edit(content=f"❌ Không tìm thấy Role ID `{VERIFIED_ROLE_ID}`!", embed=None, view=None)
-        else:
-            fail_view = discord.ui.View(timeout=60)
-            retry_btn = discord.ui.Button(label="🔄 Thử Làm Lại Bài Kiểm Tra", style=discord.ButtonStyle.danger)
-
-            async def retry_callback(inter: discord.Interaction):
-                new_quiz = VerificationQuizView(self.member, self.guild)
-                await inter.response.send_message(embed=new_quiz.make_question_embed(), view=new_quiz)
-
-            retry_btn.callback = retry_callback
-            fail_view.add_item(retry_btn)
-
-            fail_embed = discord.Embed(
-                title="💔 Xác Minh Thất Bại",
-                description=f"Rất tiếc! Cậu chỉ trả lời đúng **{self.score}/{total_q}** câu hỏi.\n\n"
-                            f"⚠️ Yêu cầu đạt **tuyệt đối 100%** để thông quan.\n"
-                            f"💡 Hãy nhấn nút bên dưới để làm lại bài test nhé!",
-                color=discord.Color.red()
-            )
-            await interaction.message.edit(content=None, embed=fail_embed, view=fail_view)
 
 
 class VerificationLandingView(discord.ui.View):
+    """Bảng nút bấm xác minh công khai"""
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="🟢 Bắt đầu xác minh", style=discord.ButtonStyle.success, custom_id="royal_city_gatekeeper_btn")
     async def start_verification(self, interaction: discord.Interaction, button: discord.ui.Button):
         member = interaction.guild.get_member(interaction.user.id)
-        quiz_view = VerificationQuizView(member, interaction.guild)
-        first_embed = quiz_view.make_question_embed()
+        view = VerificationStepView(interaction.client, member, interaction.guild)
 
-        welcome_dm_text = (
-            f"🏰 **Chào mừng bạn đã đặt chân tới vương quốc ROYAL CITY!**\n\n"
-            f"Để ngăn chặn tình trạng tài khoản Bot spam phá hoại, "
-            f"hệ thống yêu cầu bạn hoàn thành một bài trắc nghiệm gồm **{len(QUIZ_QUESTIONS)} câu hỏi**.\n"
-            f"Trả lời đúng toàn bộ câu hỏi, hệ thống sẽ cấp quyền cư dân và mở khóa toàn bộ kênh chat cho bạn!"
+        await interaction.response.send_message(
+            embed=view._make_embed(),
+            view=view,
+            ephemeral=True
         )
 
-        try:
-            await member.send(content=welcome_dm_text)
-            await member.send(embed=first_embed, view=quiz_view)
-            await interaction.response.send_message("📬 Đã gửi trình xác minh về DMs!", ephemeral=True)
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                content="⚠️ Cậu đang tắt DM! Tớ sẽ cho cậu làm bài kiểm tra ngay tại đây.",
-                embed=first_embed,
-                view=quiz_view,
-                ephemeral=True
-            )
 
 class VerificationSetupModal(discord.ui.Modal):
     def __init__(self):
@@ -194,14 +190,14 @@ class VerificationSetupModal(discord.ui.Modal):
         self.embed_desc = discord.ui.TextInput(
             label="2. Hướng dẫn cư dân (Description)",
             style=discord.TextStyle.paragraph,
-            default="✨ Chào mừng bạn đến với Royal City!\n\n📌 Nhấn nút bên dưới để bắt đầu xác minh tài khoản.\nBot sẽ gửi các câu hỏi lựa chọn vào tin nhắn riêng (DMs) của bạn.",
+            default="✨ Chào mừng bạn đến với Royal City!\n\n📌 Nhấn nút bên dưới để bắt đầu xác minh.\nBạn sẽ chọn giới tính và game yêu thích để hoàn tất!",
             placeholder="Nhập nội dung chữ hiển thị trên bảng...",
             max_length=1500,
             required=True
         )
         self.embed_footer = discord.ui.TextInput(
             label="3. Dòng chữ nhỏ dưới đáy (Footer)",
-            default="Hệ thống bảo vệ biên giới tự động Royal City 🏙️",
+            default="Hệ thống xác minh tự động Royal City 🏙️",
             placeholder="Nhập nội dung chân trang...",
             max_length=256,
             required=False
@@ -242,11 +238,12 @@ class VerificationCog(commands.Cog):
         self.bot = bot
         self.bot.add_view(VerificationLandingView())
 
-    @app_commands.command(name="setup_verification", description="Khởi tạo bảng nút bấm xác minh tùy chỉnh nội dung bằng Form Popup (Chỉ dành cho Admin tối cao)")
+    @app_commands.command(name="setup_verification", description="Khởi tạo bảng nút bấm xác minh (Chỉ Admin)")
     async def setup_verification(self, interaction: discord.Interaction):
         if interaction.user.id != ADMIN_ID:
-            return await interaction.response.send_message("❌ Cậu không phải là Người cấp quyền tối cao để dùng lệnh này!", ephemeral=True)
+            return await interaction.response.send_message("❌ Cậu không phải là Admin để dùng lệnh này!", ephemeral=True)
         await interaction.response.send_modal(VerificationSetupModal())
+
 
 async def setup(bot):
     await bot.add_cog(VerificationCog(bot))

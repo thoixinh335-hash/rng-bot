@@ -1,6 +1,8 @@
 import os
 import aiosqlite
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class _ConnectionContext:
     """Lớp bọc ngữ cảnh để quản lý kết nối an toàn, tránh kích hoạt trùng lặp luồng thread"""
     def __init__(self, db_path: str):
@@ -18,7 +20,9 @@ class _ConnectionContext:
             await self.db.close()
 
 class DatabaseManager:
-    def __init__(self, db_path: str = "database/rng.db"):
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            db_path = os.path.join(BASE_DIR, "database", "rng.db")
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 

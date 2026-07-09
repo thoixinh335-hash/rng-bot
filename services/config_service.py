@@ -1,7 +1,10 @@
 import json
 import logging
+import os
 
 logger = logging.getLogger("rng_bot")
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class ConfigService:
     _instance = None
@@ -16,9 +19,11 @@ class ConfigService:
 
     def load_all(self):
         try:
-            with open("config/config.json", "r", encoding="utf-8") as f:
+            config_path = os.path.join(BASE_DIR, "config", "config.json")
+            roles_path = os.path.join(BASE_DIR, "data", "roles.json")
+            with open(config_path, "r", encoding="utf-8") as f:
                 self.config = json.load(f)
-            with open("data/roles.json", "r", encoding="utf-8") as f:
+            with open(roles_path, "r", encoding="utf-8") as f:
                 self.roles = json.load(f)
                 self.roles.sort(key=lambda x: x["rank"])
                 self.roles_dict = {r["role_id"]: r for r in self.roles}
@@ -35,7 +40,8 @@ class ConfigService:
 
     def save(self):
         try:
-            with open("config/config.json", "w", encoding="utf-8") as f:
+            config_path = os.path.join(BASE_DIR, "config", "config.json")
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
             logger.info("Đã lưu cấu hình vào config.json")
         except Exception as e:

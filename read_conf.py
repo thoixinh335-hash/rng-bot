@@ -3,7 +3,7 @@ import asyncio
 import os
 
 async def debug_database():
-    # 1. Đường dẫn file đúng của cậu là database/rng.db
+    # 1. Đường   file đúng của cậu là database/rng.db
     db_path = 'database/rng.db' 
     
     if not os.path.exists(db_path):

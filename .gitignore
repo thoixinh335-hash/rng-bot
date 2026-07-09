@@ -45,3 +45,4 @@ data/*.sqlite3
 # Recovery / tmp
 database/*.corrupted
 database/recover.sql
+.env

@@ -54,10 +54,6 @@ def profiles():
         c.execute("SELECT * FROM royal_profiles ORDER BY id")
     rows = [dict(r) for r in c.fetchall()]
     db.close()
-
-    # Basic without discord avatar
-    rows = [dict(r) for r in c.fetchall()]
-    db.close()
     return jsonify(rows)
 
 @app.route("/api/profiles/<int:pid>", methods=["PUT"])

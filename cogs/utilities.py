@@ -147,10 +147,29 @@ class UtilitiesCog(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    # 4. LỆNH BÓI TOÁN - Dữ liệu thật từ API
-    @commands.hybrid_command(name="boi_toan", description="Xem tử vi hôm nay theo cung hoàng đạo của bạn 🔮 ")
+    # 4. LỆNH BÓI TOÁN - Dữ liệu thật từ API (cache 24h)
+    @commands.hybrid_command(name="boi_toan", description="Xem tử vi hôm nay theo cung hoàng đạo của bạn 🔮")
     async def boi_toan(self, ctx: commands.Context):
         await ctx.defer()
+
+        today_str = datetime.now().strftime("%Y-%m-%d")
+
+        # Kiểm tra cache
+        try:
+            async with await self.bot.db_manager.connect() as conn:
+                async with conn.execute(
+                    "SELECT last_fortune_date, fortune_cache FROM royal_profiles WHERE user_id = ?",
+                    (ctx.author.id,)
+                ) as cursor:
+                    cache_row = await cursor.fetchone()
+                if cache_row and cache_row[0] == today_str and cache_row[1]:
+                    import json
+                    cached = json.loads(cache_row[1])
+                    embed = discord.Embed.from_dict(cached)
+                    embed.set_footer(text=embed.footer.text + " | ⏰ Đã cập nhật hôm nay")
+                    return await ctx.send(embed=embed)
+        except:
+            pass
 
         # Lấy cung hoàng đạo từ hồ sơ
         zodiac_key = None
@@ -222,6 +241,19 @@ class UtilitiesCog(commands.Cog):
 
         embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else None)
         embed.set_footer(text="🔮 Dữ liệu tử vi thật | Royal City Fortune")
+
+        # Lưu cache
+        try:
+            import json
+            cache_json = json.dumps(embed.to_dict())
+            async with await self.bot.db_manager.connect() as conn:
+                await conn.execute(
+                    "UPDATE royal_profiles SET last_fortune_date = ?, fortune_cache = ? WHERE user_id = ?",
+                    (today_str, cache_json, ctx.author.id)
+                )
+                await conn.commit()
+        except:
+            pass
 
         await ctx.send(embed=embed)
 

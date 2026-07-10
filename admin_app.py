@@ -6,12 +6,24 @@ import customtkinter as ctk
 import requests, json, io, threading
 from datetime import datetime
 from tkinter import messagebox
-from PIL import Image as PILImage
+from PIL import Image, ImageDraw, ImageFont
+import io
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 API_URL = "http://160.250.247.142/rng-api"
+
+def load_avatar(url, size=48):
+    try:
+        import requests
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            img = Image.open(io.BytesIO(resp.content))
+            img = img.resize((size, size), Image.LANCZOS)
+            return ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
+    except: pass
+    return None
 
 # Cache avatar
 _avatar_cache = {}
@@ -251,14 +263,26 @@ class AdminApp(ctk.CTk):
             avatar_frame = ctk.CTkFrame(card, fg_color="transparent", width=56, height=56)
             avatar_frame.pack(side="left", padx=10, pady=8)
             avatar_frame.pack_propagate(False)
-            ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
+
+            discord = row.get("discord", {})
+            avatar_url = discord.get("avatar_url") if discord else None
+            if avatar_url:
+                avatar_img = load_avatar(avatar_url)
+                if avatar_img:
+                    ctk.CTkLabel(avatar_frame, image=avatar_img, text="").pack(expand=True)
+                else:
+                    ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
+            else:
+                ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
 
             # Middle: info
             info_frame = ctk.CTkFrame(card, fg_color="transparent")
             info_frame.pack(side="left", fill="both", expand=True, padx=5, pady=8)
 
-            name = discord.get("display_name") or discord.get("username") or f"User {uid}"
-            ctk.CTkLabel(info_frame, text=f"#{pid:03d} • {name}", font=("", 14, "bold")).pack(anchor="w")
+            name = discord.get("username") if discord else f"User {row.get('user_id')}"
+            if discord:
+                ctk.CTkLabel(info_frame, text=f"#{row.get('id'):03d} • {discord.get('username')}", font=("", 14, "bold")).pack(anchor="w")
+            else:
             ctk.CTkLabel(info_frame, text=f"ID: {uid} | {gender} | 🎂 {bday}", font=("Consolas", 11), text_color="gray").pack(anchor="w")
 
             # Sub info row

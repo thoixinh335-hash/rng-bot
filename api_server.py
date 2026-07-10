@@ -2,7 +2,7 @@
 Royal City Admin API - Chay tren VPS cung bot
 """
 from flask import Flask, jsonify, request
-import sqlite3, os, json
+import sqlite3, os, json, requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -10,6 +10,27 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "database", "rng.db")
 CONFIG_PATH = os.path.join(BASE_DIR, "config", "config.json")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
+
+# === Discord API (khong can token, public user data) ===
+DISCORD_API = "https://discord.com/api/v10"
+
+def get_discord_user(user_id):
+    """Lay avatar + ten tu Discord bang API (khong can auth cho public data)"""
+    try:
+        resp = requests.get(f"{DISCORD_API}/users/{user_id}", timeout=5)
+        if resp.status_code == 200:
+            d = resp.json()
+            username = d.get("username", "Unknown")
+            avatar_hash = d.get("avatar")
+            if avatar_hash:
+                ext = "gif" if avatar_hash.startswith("a_") else "png"
+                avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.{ext}?size=64"
+            else:
+                avatar_url = f"https://cdn.discordapp.com/embed/avatars/{(int(d.get('discriminator', '0')[0]) % 5) if d.get('discriminator') else 0}.png"
+            return {"username": username, "avatar_url": avatar_url}
+    except:
+        pass
+    return None
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -54,6 +75,11 @@ def profiles():
         c.execute("SELECT * FROM royal_profiles ORDER BY id")
     rows = [dict(r) for r in c.fetchall()]
     db.close()
+    # Them Discord user data cho moi ho so
+    for row in rows:
+        uid = row.get("user_id")
+        if uid:
+            row["discord"] = get_discord_user(uid)
     return jsonify(rows)
 
 @app.route("/api/profiles/<int:pid>", methods=["PUT"])

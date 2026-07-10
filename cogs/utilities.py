@@ -185,6 +185,20 @@ class UtilitiesCog(commands.Cog):
 
         horoscope_text = horoscope_data.get("horoscope", "Không có dữ liệu tử vi hôm nay.")
 
+        # Dịch sang tiếng Việt
+        try:
+            import urllib.parse
+            translate_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q={urllib.parse.quote(horoscope_text[:500])}"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(translate_url, timeout=5) as tresp:
+                    if tresp.status == 200:
+                        tdata = await tresp.json()
+                        translated_parts = [part[0] for part in tdata[0] if part[0]]
+                        if translated_parts:
+                            horoscope_text = "".join(translated_parts)
+        except Exception:
+            pass  # Giữ nguyên tiếng Anh nếu dịch lỗi
+
         # Bổ sung: con số, màu sắc, lời khuyên
         lucky_number = random.randint(1, 99)
         lucky_colors = random.choice(["🔴 Đỏ", "🔵 Xanh dương", "🟢 Xanh lá", "🟡 Vàng", "🟣 Tím", "🟠 Cam", "⚪ Trắng", "⚫ Đen", "🩷 Hồng"])

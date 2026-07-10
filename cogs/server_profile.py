@@ -17,6 +17,36 @@ DEFAULT_BANNER = "https://images.unsplash.com/photo-1519501025264-65ba15a82390?q
 # ==========================================
 # GIAO DIỆN NÚT BẤM CẦU HÔN HOÀNG GIA
 # ==========================================
+class CancelDivorceView(discord.ui.View):
+    """Nút hủy ly hôn gửi qua DM"""
+    def __init__(self, cog, user_id: int, spouse_id: int):
+        super().__init__(timeout=43200)  # 12h
+        self.cog = cog
+        self.user_id = user_id
+        self.spouse_id = spouse_id
+
+    @discord.ui.button(label="💔 Hủy ly hôn - Cho nhau cơ hội nữa đi...", style=discord.ButtonStyle.danger)
+    async def cancel_divorce(self, interaction: discord.Interaction, button: discord.ui.Button):
+        async with await self.cog.bot.db_manager.connect() as conn:
+            await conn.execute("UPDATE royal_profiles SET divorce_pending = 0, divorce_time = NULL WHERE user_id IN (?, ?)",
+                              (self.user_id, self.spouse_id))
+            await conn.commit()
+        self.stop()
+        await interaction.response.edit_message(
+            content="💖 **Ly hôn đã được hủy bỏ!**\nCảm ơn bạn đã cho nhau thêm một cơ hội. Hãy trân trọng nhau nhé! 🕊️",
+            view=None
+        )
+        # Thông báo cho người kia
+        for guild in self.cog.bot.guilds:
+            other_id = self.spouse_id if interaction.user.id == self.user_id else self.user_id
+            other = guild.get_member(other_id)
+            if other:
+                try:
+                    await other.send(f"💖 **{interaction.user.display_name} đã hủy ly hôn!**\nHãy cho nhau thêm một cơ hội và cùng nhau hàn gắn nhé! 🕊️")
+                except: pass
+                break
+
+
 class MarriageProposalView(discord.ui.View):
     def __init__(self, cog, proposer: discord.Member, target: discord.Member):
         super().__init__(timeout=60)
@@ -180,6 +210,10 @@ class ServerProfileCog(commands.Cog):
             except: pass
             try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN last_interact TEXT DEFAULT NULL")
             except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN divorce_pending INTEGER DEFAULT 0")
+            except: pass
+            try: await conn.execute("ALTER TABLE royal_profiles ADD COLUMN divorce_time TEXT DEFAULT NULL")
+            except: pass
             await conn.commit()
         
         if not self.check_unbans.is_running(): self.check_unbans.start()
@@ -189,6 +223,7 @@ class ServerProfileCog(commands.Cog):
     async def check_unbans(self):
         now = datetime.utcnow().isoformat()
         async with await self.bot.db_manager.connect() as conn:
+            # Unban
             async with conn.execute("SELECT user_id FROM royal_bans WHERE unban_time <= ?", (now,)) as cursor:
                 expired_bans = await cursor.fetchall()
             for row in expired_bans:
@@ -198,6 +233,30 @@ class ServerProfileCog(commands.Cog):
                 for guild in self.bot.guilds:
                     try: await guild.unban(discord.Object(id=uid), reason="Hết thời hạn trục xuất tự động.")
                     except Exception: pass
+
+            # Divorce hết hạn (12h)
+            async with conn.execute(
+                "SELECT user_id, spouse_id FROM royal_profiles WHERE divorce_pending = 1 AND divorce_time <= ?", (now,)
+            ) as cursor:
+                expired_divorces = await cursor.fetchall()
+            for row in expired_divorces:
+                uid, sid = row
+                await conn.execute("UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL, divorce_pending = 0, divorce_time = NULL WHERE user_id = ?", (uid,))
+                if sid:
+                    await conn.execute("UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL, divorce_pending = 0, divorce_time = NULL WHERE user_id = ?", (sid,))
+                await conn.commit()
+                for guild in self.bot.guilds:
+                    try:
+                        member = guild.get_member(uid)
+                        if member:
+                            await member.send("💔 **Ly hôn đã chính thức có hiệu lực.**\nThời gian 12 giờ suy nghĩ đã kết thúc. Chúc bạn sớm tìm được bến đỗ mới! 🕊️")
+                    except: pass
+                    try:
+                        if sid:
+                            sm = guild.get_member(sid)
+                            if sm:
+                                await sm.send("💔 **Ly hôn đã chính thức có hiệu lực.**\nThời gian 12 giờ suy nghĩ đã kết thúc. Chúc bạn sớm tìm được bến đỗ mới! 🕊️")
+                    except: pass
 
     @tasks.loop(seconds=5)
     async def check_reminders(self):
@@ -597,18 +656,57 @@ class ServerProfileCog(commands.Cog):
 
         await interaction.followup.send(content=f"{user.mention} ơi! 🌹 **LỜI CẦU HÔN HOÀNG GIA** 🌹\n💖 {interaction.user.mention} đang cầu hôn cậu. Cậu có đồng ý kết đôi không?", view=MarriageProposalView(self, interaction.user, user))
 
-    @app_commands.command(name="ly_hon", description="Xóa bỏ trạng thái kết đôi với tri kỷ hiện tại")
+    @app_commands.command(name="ly_hon", description="Gửi yêu cầu ly hôn - sẽ có 12 giờ để suy nghĩ lại")
     async def divorce(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         async with await self.bot.db_manager.connect() as conn:
-            async with conn.execute("SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor: row = await cursor.fetchone()
-            if not row or not row[0]: return await interaction.followup.send("❌ Bạn đang độc thân!", ephemeral=True)
-            spouse_id = row[0]
-            await conn.execute("UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL WHERE user_id = ?", (interaction.user.id,))
-            await conn.execute("UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL WHERE user_id = ?", (spouse_id,))
+            async with conn.execute("SELECT spouse_id, divorce_pending FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                row = await cursor.fetchone()
+        if not row or not row[0]:
+            return await interaction.followup.send("❌ Bạn đang độc thân!", ephemeral=True)
+        spouse_id, pending = row
+        if pending:
+            return await interaction.followup.send("⏳ Yêu cầu ly hôn đang trong thời gian chờ. Vui lòng đợi kết thúc 12 giờ.", ephemeral=True)
+
+        # Set pending divorce cho cả 2
+        divorce_time = (datetime.utcnow() + timedelta(hours=12)).isoformat()
+        async with await self.bot.db_manager.connect() as conn:
+            await conn.execute("UPDATE royal_profiles SET divorce_pending = 1, divorce_time = ? WHERE user_id IN (?, ?)", (divorce_time, interaction.user.id, spouse_id))
             await conn.commit()
-        await interaction.channel.send(f"💔 Cư dân {interaction.user.mention} và <@{spouse_id}> đã ly hôn.")
-        await interaction.followup.send("✅ Đã xử lý thủ tục ly hôn thành công.", ephemeral=True)
+
+        # DM cho người khởi xướng (cũng có nút hủy)
+        view_self = CancelDivorceView(self, interaction.user.id, spouse_id)
+        try:
+            await interaction.user.send(
+                "📝 **Đơn ly hôn đã được gửi!**\n\n"
+                f"Tri kỷ của bạn sẽ nhận được thông báo và có **12 giờ** để suy nghĩ lại.\n"
+                "Nếu sau 12 giờ không ai hủy, ly hôn sẽ có hiệu lực. 💔\n\n"
+                "🔄 *Đổi ý rồi à? Nhấn nút bên dưới để hủy!*",
+                view=view_self
+            )
+        except: pass
+
+        # DM cho người kia kèm nút hủy
+        spouse_member = interaction.guild.get_member(spouse_id)
+        if spouse_member:
+            view = CancelDivorceView(self, interaction.user.id, spouse_id)
+            try:
+                await spouse_member.send(
+                    f"💔 **{interaction.user.display_name} vừa gửi đơn ly hôn!**\n\n"
+                    f"😢 Tri kỷ của bạn muốn kết thúc mối quan hệ này...\n"
+                    f"⏳ Bạn có **12 giờ** để suy nghĩ và níu kéo.\n\n"
+                    f"💡 *Nếu bạn cũng muốn buông tay, không cần làm gì cả. Sau 12 giờ ly hôn sẽ có hiệu lực.*\n"
+                    f"💖 *Nếu bạn muốn hàn gắn, hãy nhấn nút bên dưới!*",
+                    view=view
+                )
+            except discord.Forbidden:
+                pass
+
+        await interaction.followup.send(
+            f"📝 **Đơn ly hôn đã được gửi!** <@{spouse_id}> sẽ có 12 giờ để suy nghĩ lại.\n"
+            "Nếu sau 12 giờ không ai hủy, hai bạn sẽ chính thức đường ai nấy đi. 💔",
+            ephemeral=True
+        )
 
     @app_commands.command(name="ket_hon", description="Cầu hôn một cư dân khác để kết đôi tri kỷ 💍")
     @app_commands.describe(nguoi_yeu="Người mà bạn muốn kết hôn cùng")

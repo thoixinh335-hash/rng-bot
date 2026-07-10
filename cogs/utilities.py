@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import random
 from datetime import datetime
+import logging
 import aiohttp
 
 # Map cung hoàng đạo tiếng Việt -> API name
@@ -147,7 +148,7 @@ class UtilitiesCog(commands.Cog):
         await ctx.send(embed=embed)
 
     # 4. LỆNH BÓI TOÁN - Dữ liệu thật từ API
-    @commands.hybrid_command(name="boi_toan", description="Xem tử vi hôm nay theo cung hoàng đạo của bạn 🔮 (Dữ liệu thật)")
+    @commands.hybrid_command(name="boi_toan", description="Xem tử vi hôm nay theo cung hoàng đạo của bạn 🔮 ")
     async def boi_toan(self, ctx: commands.Context):
         await ctx.defer()
 
@@ -170,34 +171,43 @@ class UtilitiesCog(commands.Cog):
             )
 
         api_sign = ZODIAC_MAP[zodiac_key]
-        api_url = f"https://aztro.sameerkumar.website/?sign={api_sign}&day=today"
+        api_url = f"https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily?sign={api_sign}&day=today"
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(api_url) as resp:
+                async with session.get(api_url, timeout=10) as resp:
                     if resp.status != 200:
-                        return await ctx.send("❌ Máy chủ tử vi đang bận, thử lại sau nhé!")
+                        raise Exception(f"HTTP {resp.status}")
                     data = await resp.json()
+                    horoscope_data = data.get("data", {})
         except Exception:
-            return await ctx.send("❌ Không thể kết nối đến máy chủ tử vi. Thử lại sau nhé!")
+            return await ctx.send("❌ Máy chủ tử vi đang bận, thử lại sau nhé!")
 
-        compat_vn = COMPATIBILITY_VN.get(data.get("compatibility", "").lower(), data.get("compatibility", "???"))
+        horoscope_text = horoscope_data.get("horoscope", "Không có dữ liệu tử vi hôm nay.")
+
+        # Bổ sung: con số, màu sắc, lời khuyên
+        lucky_number = random.randint(1, 99)
+        lucky_colors = random.choice(["🔴 Đỏ", "🔵 Xanh dương", "🟢 Xanh lá", "🟡 Vàng", "🟣 Tím", "🟠 Cam", "⚪ Trắng", "⚫ Đen", "🩷 Hồng"])
+        advices = [
+            "Đừng ngại nói lên suy nghĩ của mình. Im lặng đôi khi không phải là vàng! 💬",
+            "Hãy làm một việc tốt ngày hôm nay. Một nụ cười cũng đủ làm thế giới tốt đẹp hơn! 🌈",
+            "Đừng quá lo lắng về tương lai. Hiện tại mới là món quà quý giá nhất! 🎁",
+            "Hôm nay hãy thử một điều gì đó mới mẻ! Một món ăn lạ, một bài hát mới! 🗺️",
+            "Hãy gửi một lời cảm ơn đến ai đó đã giúp đỡ bạn. Lòng biết ơn mang lại nhiều điều tốt đẹp! 🙏",
+        ]
 
         embed = discord.Embed(
             title=f"🔮 TỬ VI HÔM NAY CHO {ctx.author.display_name} 🔮",
-            description=f"✨ **{zodiac_key}** ({ZODIAC_DATES.get(zodiac_key, '')}) | Ngày {data.get('current_date', 'hôm nay')}",
+            description=f"✨ **{zodiac_key}** ({ZODIAC_DATES.get(zodiac_key, '')}) | {horoscope_data.get('date', 'hôm nay')}\n━━━━━━━━━━━━━━━━━━━━━━━",
             color=discord.Color.purple()
         )
-
-        embed.add_field(name="📝 **Tổng quan:**", value=data.get("description", "Không có dữ liệu."), inline=False)
-        embed.add_field(name="😊 **Tâm trạng:**", value=data.get("mood", "???"), inline=True)
-        embed.add_field(name="💞 **Hợp nhất với:**", value=compat_vn, inline=True)
-        embed.add_field(name="🌈 **Màu sắc may mắn:**", value=data.get("color", "???"), inline=True)
-        embed.add_field(name="🎲 **Con số may mắn:**", value=f"`{data.get('lucky_number', '???')}`", inline=True)
-        embed.add_field(name="⏰ **Khung giờ may mắn:**", value=data.get("lucky_time", "???"), inline=True)
+        embed.add_field(name="📝 **Tử vi hôm nay:**", value=horoscope_text, inline=False)
+        embed.add_field(name="🎲 **Con số may mắn:**", value=f"`{lucky_number}`", inline=True)
+        embed.add_field(name="🌈 **Màu sắc may mắn:**", value=lucky_colors, inline=True)
+        embed.add_field(name="💡 **Lời khuyên:**", value=random.choice(advices), inline=False)
 
         embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else None)
-        embed.set_footer(text="🔮 Dữ liệu tử vi thật từ Aztro API | Royal City Fortune")
+        embed.set_footer(text="🔮 Dữ liệu tử vi thật từ Horoscope API | Royal City Fortune")
 
         await ctx.send(embed=embed)
 

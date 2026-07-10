@@ -53,6 +53,7 @@ class MarriageProposalView(discord.ui.View):
         self.cog = cog
         self.proposer = proposer
         self.target = target
+        self.message = None  # Lưu message để edit khi timeout
 
     @discord.ui.button(label="💍 Đồng Ý", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -74,6 +75,19 @@ class MarriageProposalView(discord.ui.View):
             return await interaction.response.send_message("❌ Thư từ chối này không thuộc về cậu!", ephemeral=True)
         self.stop()
         await interaction.response.edit_message(content=f"💔 {self.target.mention} đã từ chối lời cầu hôn.", view=None)
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            try:
+                embed = discord.Embed(
+                    title="⏰ LỜI CẦU HÔN ĐÃ HẾT HẠN",
+                    description=f"Lời cầu hôn từ {self.proposer.mention} dành cho {self.target.mention} đã hết thời gian 60 giây và không còn hiệu lực.",
+                    color=discord.Color.light_grey()
+                )
+                await self.message.edit(embed=embed, view=None)
+            except: pass
 
 
 # ==========================================
@@ -654,7 +668,9 @@ class ServerProfileCog(commands.Cog):
         if not p2: return await interaction.followup.send("❌ Đối phương chưa có hồ sơ cư dân!", ephemeral=True)
         if p1[0] or p2[0]: return await interaction.followup.send("❌ Một trong hai đã kết hôn!", ephemeral=True)
 
-        await interaction.followup.send(content=f"{user.mention} ơi! 🌹 **LỜI CẦU HÔN HOÀNG GIA** 🌹\n💖 {interaction.user.mention} đang cầu hôn cậu. Cậu có đồng ý kết đôi không?", view=MarriageProposalView(self, interaction.user, user))
+        view = MarriageProposalView(self, interaction.user, user)
+        await interaction.followup.send(content=f"{user.mention} ơi! 🌹 **LỜI CẦU HÔN HOÀNG GIA** 🌹\n💖 {interaction.user.mention} đang cầu hôn cậu. Cậu có đồng ý kết đôi không?", view=view)
+        view.message = await interaction.original_response()
 
     @app_commands.command(name="ly_hon", description="Gửi yêu cầu ly hôn - sẽ có 12 giờ để suy nghĩ lại")
     async def divorce(self, interaction: discord.Interaction):
@@ -733,6 +749,7 @@ class ServerProfileCog(commands.Cog):
             color=discord.Color.from_rgb(255, 105, 180)
         )
         await interaction.followup.send(content=nguoi_yeu.mention, embed=embed, view=view)
+        view.message = await interaction.original_response()
 
     # ==========================================
     # GHÉP ĐÔI TỰ ĐỘNG

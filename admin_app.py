@@ -280,9 +280,9 @@ class AdminApp(ctk.CTk):
             info_frame.pack(side="left", fill="both", expand=True, padx=5, pady=8)
 
             name = discord.get("username") if discord else f"User {row.get('user_id')}"
-            if discord:
-                ctk.CTkLabel(info_frame, text=f"#{row.get('id'):03d} • {discord.get('username')}", font=("", 14, "bold")).pack(anchor="w")
-            else:
+            if not discord:
+                ctk.CTkLabel(info_frame, text=f"#{row.get('id'):03d} • User ID:{row.get('user_id')}", font=("", 14, "bold")).pack(anchor="w")
+            ctk.CTkLabel(info_frame, text=f"ID: {row.get('user_id')} | {gender} | 🎂 {bday}", font=("Consolas", 11), text_color="gray").pack(anchor="w")
             ctk.CTkLabel(info_frame, text=f"ID: {uid} | {gender} | 🎂 {bday}", font=("Consolas", 11), text_color="gray").pack(anchor="w")
 
             # Sub info row

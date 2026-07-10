@@ -221,7 +221,7 @@ class UtilitiesCog(commands.Cog):
         embed.add_field(name="💡 **Lời khuyên:**", value=random.choice(advices), inline=False)
 
         embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else None)
-        embed.set_footer(text="🔮 Dữ liệu tử vi thật từ Horoscope API | Royal City Fortune")
+        embed.set_footer(text="🔮 Dữ liệu tử vi thật | Royal City Fortune")
 
         await ctx.send(embed=embed)
 

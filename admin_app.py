@@ -13,7 +13,7 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 # === CONFIG VPS ===
-API_URL = "http://localhost:5555"  # Sửa thành IP VPS thật
+API_URL = "http://160.250.247.142/rng-api"
 
 
 class AdminApp(ctk.CTk):

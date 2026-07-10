@@ -92,7 +92,6 @@ class RNGBot(commands.Bot):
             "cogs.utilities",
             "cogs.community",
             "cogs.spyfall",
-            "cogs.chat_reviver",
             "cogs.server_profile",
             "cogs.verification",
             "cogs.self_roles"

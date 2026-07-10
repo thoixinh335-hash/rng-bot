@@ -101,5 +101,58 @@ class UtilitiesCog(commands.Cog):
         
         await ctx.send(embed=embed)
 
+    # 4. LỆNH BÓI TOÁN
+    @commands.hybrid_command(name="boi_toan", description="Xem vận mệnh hôm nay của bạn 🔮")
+    async def boi_toan(self, ctx: commands.Context):
+        import random
+
+        love_fortunes = [
+            "💘 **Tình cảm:** Hôm nay là ngày cực kỳ may mắn trong chuyện tình cảm! Có người đang thầm thương trộm nhớ bạn đấy, hãy để ý những ánh mắt xung quanh nhé! 👀",
+            "💘 **Tình cảm:** Chuyện tình cảm hôm nay khá yên bình. Hãy dành thời gian quan tâm người ấy nhiều hơn, một tin nhắn nhỏ cũng đủ làm họ vui cả ngày! 💕",
+            "💘 **Tình cảm:** Cẩn thận với những hiểu lầm không đáng có hôm nay. Bình tĩnh lắng nghe và đừng vội kết luận. Giao tiếp là chìa khóa! 🗝️",
+            "💘 **Tình cảm:** Một bất ngờ ngọt ngào đang đến! Có thể là một lời tỏ tình, một món quà, hoặc chỉ đơn giản là một cái ôm thật ấm áp. Hãy mở lòng đón nhận! 🎁",
+            "💘 **Tình cảm:** Hôm nay tâm trạng bạn khá thất thường. Đừng để cảm xúc tiêu cực ảnh hưởng đến mối quan hệ. Đi dạo một vòng cho khuây khỏa nhé! 🚶",
+        ]
+        career_fortunes = [
+            "💼 **Sự nghiệp:** Một cơ hội lớn đang đến gần! Hãy chuẩn bị sẵn sàng và đừng ngại nắm bắt. Thành công đang chờ bạn phía trước! 🚀",
+            "💼 **Sự nghiệp:** Hôm nay là ngày lý tưởng để lên kế hoạch cho tương lai. Những ý tưởng sáng tạo sẽ đến bất ngờ, hãy ghi chép lại ngay! 📝",
+            "💼 **Sự nghiệp:** Cẩn thận với những lời hứa hẹn từ đồng nghiệp. Hãy tập trung vào công việc của mình và đừng để bị phân tâm bởi drama công sở! ☕",
+            "💼 **Sự nghiệp:** Một thử thách nhỏ sẽ xuất hiện hôm nay, nhưng đừng lo - bạn hoàn toàn có thể vượt qua! Hãy tự tin vào năng lực của mình! 💪",
+            "💼 **Sự nghiệp:** Tin vui về tài chính hoặc thăng tiến đang trên đường đến! Có thể không phải hôm nay, nhưng rất sớm thôi. Hãy kiên nhẫn! 🌟",
+        ]
+        health_fortunes = [
+            "🏥 **Sức khỏe:** Năng lượng hôm nay ở mức cao! Hãy tận dụng để tập thể dục hoặc làm những việc cần sức lực. Cơ thể bạn sẽ cảm ơn bạn! 🏃",
+            "🏥 **Sức khỏe:** Hơi mệt mỏi một chút, có thể do bạn thức khuya dạo này. Tối nay hãy đi ngủ sớm và uống nhiều nước nhé! 💧",
+            "🏥 **Sức khỏe:** Tinh thần rất tốt nhưng thể chất hơi đuối. Đừng quên ăn sáng đầy đủ và bổ sung vitamin. Sức khỏe là vàng! 🍎",
+            "🏥 **Sức khỏe:** Cẩn thận với các bệnh vặt như cảm cúm, đau đầu. Mang theo áo khoác khi ra ngoài và hạn chế đồ lạnh nhé! 🤧",
+            "🏥 **Sức khỏe:** Hôm nay cơ thể bạn đang ở trạng thái cân bằng tuyệt vời. Tiếp tục duy trì lối sống lành mạnh này nhé! 🧘",
+        ]
+        advices = [
+            "💡 **Lời khuyên:** Đừng ngại nói lên suy nghĩ của mình. Im lặng đôi khi không phải là vàng, mà là bỏ lỡ cơ hội!",
+            "💡 **Lời khuyên:** Hãy làm một việc tốt ngày hôm nay. Một nụ cười, một lời khen cũng đủ làm thế giới tốt đẹp hơn! 🌈",
+            "💡 **Lời khuyên:** Đừng quá lo lắng về tương lai. Hiện tại mới là món quà quý giá nhất. Sống trọn từng khoảnh khắc! 🎁",
+            "💡 **Lời khuyên:** Hôm nay hãy thử một điều gì đó mới mẻ! Một món ăn lạ, một bài hát mới, hay đơn giản là đi một con đường khác đến trường/công ty! 🗺️",
+            "💡 **Lời khuyên:** Hãy gửi một lời cảm ơn đến ai đó đã giúp đỡ bạn. Lòng biết ơn sẽ mang lại nhiều điều tốt đẹp! 🙏",
+        ]
+        lucky_numbers = sorted(random.sample(range(1, 100), 5))
+        lucky_colors = random.choice(["🔴 Đỏ", "🔵 Xanh dương", "🟢 Xanh lá", "🟡 Vàng", "🟣 Tím", "🟠 Cam", "⚪ Trắng", "⚫ Đen", "🩷 Hồng"])
+
+        today = datetime.now().strftime("%d/%m/%Y")
+        embed = discord.Embed(
+            title="🔮 QUẢ CẦU TIÊN TRI ROYAL CITY 🔮",
+            description=f"✨ **Vận mệnh ngày {today} cho {ctx.author.mention}** ✨\n━━━━━━━━━━━━━━━━━━━━━━━",
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="", value=random.choice(love_fortunes), inline=False)
+        embed.add_field(name="", value=random.choice(career_fortunes), inline=False)
+        embed.add_field(name="", value=random.choice(health_fortunes), inline=False)
+        embed.add_field(name="", value=random.choice(advices), inline=False)
+        embed.add_field(name="🎲 **Con số may mắn:**", value=f"`{' - '.join(str(n) for n in lucky_numbers)}`", inline=True)
+        embed.add_field(name="🌈 **Màu sắc may mắn:**", value=lucky_colors, inline=True)
+        embed.set_footer(text="🔮 Bói vui có duyên - Tin thì linh thiêng, không tin thì... cũng vui! | Royal City Fortune")
+
+        await ctx.send(embed=embed)
+
+
 async def setup(bot):
     await bot.add_cog(UtilitiesCog(bot))

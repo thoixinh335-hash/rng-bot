@@ -610,40 +610,31 @@ class ServerProfileCog(commands.Cog):
         await interaction.channel.send(f"💔 Cư dân {interaction.user.mention} và <@{spouse_id}> đã ly hôn.")
         await interaction.followup.send("✅ Đã xử lý thủ tục ly hôn thành công.", ephemeral=True)
 
-    @app_commands.command(name="ket_hon", description="Cưới trực tiếp 2 cư dân không cần cầu hôn (Chỉ Admin)")
-    @app_commands.describe(nguoi_a="Cư dân thứ nhất", nguoi_b="Cư dân thứ hai")
-    async def ket_hon(self, interaction: discord.Interaction, nguoi_a: discord.Member, nguoi_b: discord.Member):
-        await interaction.response.defer(ephemeral=True)
-        if interaction.user.id != ADMIN_ID:
-            return await interaction.followup.send("❌ Chỉ Admin tối cao mới có quyền tổ chức hôn lễ!", ephemeral=True)
-        if nguoi_a == nguoi_b or nguoi_a.bot or nguoi_b.bot:
+    @app_commands.command(name="ket_hon", description="Cầu hôn một cư dân khác để kết đôi tri kỷ 💍")
+    @app_commands.describe(nguoi_yeu="Người mà bạn muốn kết hôn cùng")
+    async def ket_hon(self, interaction: discord.Interaction, nguoi_yeu: discord.Member):
+        await interaction.response.defer()
+        if nguoi_yeu == interaction.user or nguoi_yeu.bot:
             return await interaction.followup.send("❌ Đối tượng kết hôn không hợp lệ!", ephemeral=True)
 
         async with await self.bot.db_manager.connect() as conn:
-            async with conn.execute("SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (nguoi_a.id,)) as c1:
+            async with conn.execute("SELECT id, spouse_id FROM royal_profiles WHERE user_id = ?", (interaction.user.id,)) as c1:
                 p1 = await c1.fetchone()
-            async with conn.execute("SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (nguoi_b.id,)) as c2:
+            async with conn.execute("SELECT id, spouse_id FROM royal_profiles WHERE user_id = ?", (nguoi_yeu.id,)) as c2:
                 p2 = await c2.fetchone()
-            if not p1: return await interaction.followup.send(f"❌ {nguoi_a.mention} chưa có hồ sơ cư dân!", ephemeral=True)
-            if not p2: return await interaction.followup.send(f"❌ {nguoi_b.mention} chưa có hồ sơ cư dân!", ephemeral=True)
-            if p1[0] or p2[0]:
-                return await interaction.followup.send("❌ Một trong hai người đã kết hôn rồi!", ephemeral=True)
+        if not p1: return await interaction.followup.send("❌ Cậu chưa có hồ sơ cư dân! Vào xác minh trước nhé.", ephemeral=True)
+        if not p2: return await interaction.followup.send(f"❌ {nguoi_yeu.mention} chưa có hồ sơ cư dân!", ephemeral=True)
+        if p1[1]: return await interaction.followup.send("❌ Cậu đã có tri kỷ rồi! Dùng `/ly_hon` trước nếu muốn kết hôn lại.", ephemeral=True)
+        if p2[1]: return await interaction.followup.send(f"❌ {nguoi_yeu.mention} đã có tri kỷ rồi!", ephemeral=True)
 
-            now = datetime.utcnow().isoformat()
-            await conn.execute("UPDATE royal_profiles SET spouse_id = ?, marriage_date = ? WHERE user_id = ?", (nguoi_b.id, now, nguoi_a.id))
-            await conn.execute("UPDATE royal_profiles SET spouse_id = ?, marriage_date = ? WHERE user_id = ?", (nguoi_a.id, now, nguoi_b.id))
-            await conn.commit()
-
+        view = MarriageProposalView(self, interaction.user, nguoi_yeu)
         embed = discord.Embed(
-            title="💒 HÔN LỄ HOÀNG GIA 💒",
-            description=f"Dưới sự chứng kiến của Đấng Tối Cao...\n\n"
-                        f"💍 {nguoi_a.mention} và {nguoi_b.mention}\n"
-                        f"✨ Nay đã chính thức trở thành **Tri Kỷ**!\n\n"
-                        f"*Chúc hai con trăm năm hạnh phúc, mãi mãi bên nhau!* 🕊️",
+            title="💍 LỜI CẦU HÔN HOÀNG GIA 💍",
+            description=f"{interaction.user.mention} muốn kết hôn với {nguoi_yeu.mention}!\n\n"
+                        f"{nguoi_yeu.mention} ơi, cậu có đồng ý không? ⏳ **60 giây** để trả lời!",
             color=discord.Color.from_rgb(255, 105, 180)
         )
-        await interaction.channel.send(embed=embed)
-        await interaction.followup.send("✅ Hôn lễ đã được cử hành thành công!", ephemeral=True)
+        await interaction.followup.send(content=nguoi_yeu.mention, embed=embed, view=view)
 
     # ==========================================
     # GHÉP ĐÔI TỰ ĐỘNG

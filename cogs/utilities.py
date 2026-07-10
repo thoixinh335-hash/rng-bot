@@ -2,6 +2,51 @@ import discord
 from discord.ext import commands
 import random
 from datetime import datetime
+import aiohttp
+
+# Map cung hoàng đạo tiếng Việt -> API name
+ZODIAC_MAP = {
+    "Bạch Dương ♈": "aries", "Kim Ngưu ♉": "taurus", "Song Tử ♊": "gemini",
+    "Cự Giải ♋": "cancer", "Sư Tử ♌": "leo", "Xử Nữ ♍": "virgo",
+    "Thiên Bình ♎": "libra", "Bọ Cạp ♏": "scorpio", "Nhân Mã ♐": "sagittarius",
+    "Ma Kết ♑": "capricorn", "Bảo Bình ♒": "aquarius", "Song Ngư ♓": "pisces"
+}
+
+ZODIAC_DATES = {
+    "Bạch Dương ♈": "21/03 - 19/04", "Kim Ngưu ♉": "20/04 - 20/05",
+    "Song Tử ♊": "21/05 - 20/06", "Cự Giải ♋": "21/06 - 22/07",
+    "Sư Tử ♌": "23/07 - 22/08", "Xử Nữ ♍": "23/08 - 22/09",
+    "Thiên Bình ♎": "23/09 - 22/10", "Bọ Cạp ♏": "23/10 - 21/11",
+    "Nhân Mã ♐": "22/11 - 21/12", "Ma Kết ♑": "22/12 - 19/01",
+    "Bảo Bình ♒": "20/01 - 18/02", "Song Ngư ♓": "19/02 - 20/03"
+}
+
+COMPATIBILITY_VN = {
+    "aries": "Bạch Dương ♈", "taurus": "Kim Ngưu ♉", "gemini": "Song Tử ♊",
+    "cancer": "Cự Giải ♋", "leo": "Sư Tử ♌", "virgo": "Xử Nữ ♍",
+    "libra": "Thiên Bình ♎", "scorpio": "Bọ Cạp ♏", "sagittarius": "Nhân Mã ♐",
+    "capricorn": "Ma Kết ♑", "aquarius": "Bảo Bình ♒", "pisces": "Song Ngư ♓"
+}
+
+def calc_zodiac(birthday_str: str) -> str | None:
+    """Tính cung hoàng đạo từ ngày sinh dd/mm/yyyy"""
+    try:
+        parts = birthday_str.replace("-", "/").replace(".", "/").split("/")
+        day, month = int(parts[0]), int(parts[1])
+        if (month == 3 and day >= 21) or (month == 4 and day <= 19): return "Bạch Dương ♈"
+        if (month == 4 and day >= 20) or (month == 5 and day <= 20): return "Kim Ngưu ♉"
+        if (month == 5 and day >= 21) or (month == 6 and day <= 20): return "Song Tử ♊"
+        if (month == 6 and day >= 21) or (month == 7 and day <= 22): return "Cự Giải ♋"
+        if (month == 7 and day >= 23) or (month == 8 and day <= 22): return "Sư Tử ♌"
+        if (month == 8 and day >= 23) or (month == 9 and day <= 22): return "Xử Nữ ♍"
+        if (month == 9 and day >= 23) or (month == 10 and day <= 22): return "Thiên Bình ♎"
+        if (month == 10 and day >= 23) or (month == 11 and day <= 21): return "Bọ Cạp ♏"
+        if (month == 11 and day >= 22) or (month == 12 and day <= 21): return "Nhân Mã ♐"
+        if (month == 12 and day >= 22) or (month == 1 and day <= 19): return "Ma Kết ♑"
+        if (month == 1 and day >= 20) or (month == 2 and day <= 18): return "Bảo Bình ♒"
+        if (month == 2 and day >= 19) or (month == 3 and day <= 20): return "Song Ngư ♓"
+    except: pass
+    return None
 
 # Danh sách lời chúc/lời chữa lành ngọt ngào cho lệnh /healing
 HEALING_QUOTES = [
@@ -101,55 +146,58 @@ class UtilitiesCog(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    # 4. LỆNH BÓI TOÁN
-    @commands.hybrid_command(name="boi_toan", description="Xem vận mệnh hôm nay của bạn 🔮")
+    # 4. LỆNH BÓI TOÁN - Dữ liệu thật từ API
+    @commands.hybrid_command(name="boi_toan", description="Xem tử vi hôm nay theo cung hoàng đạo của bạn 🔮 (Dữ liệu thật)")
     async def boi_toan(self, ctx: commands.Context):
-        import random
+        await ctx.defer()
 
-        love_fortunes = [
-            "💘 **Tình cảm:** Hôm nay là ngày cực kỳ may mắn trong chuyện tình cảm! Có người đang thầm thương trộm nhớ bạn đấy, hãy để ý những ánh mắt xung quanh nhé! 👀",
-            "💘 **Tình cảm:** Chuyện tình cảm hôm nay khá yên bình. Hãy dành thời gian quan tâm người ấy nhiều hơn, một tin nhắn nhỏ cũng đủ làm họ vui cả ngày! 💕",
-            "💘 **Tình cảm:** Cẩn thận với những hiểu lầm không đáng có hôm nay. Bình tĩnh lắng nghe và đừng vội kết luận. Giao tiếp là chìa khóa! 🗝️",
-            "💘 **Tình cảm:** Một bất ngờ ngọt ngào đang đến! Có thể là một lời tỏ tình, một món quà, hoặc chỉ đơn giản là một cái ôm thật ấm áp. Hãy mở lòng đón nhận! 🎁",
-            "💘 **Tình cảm:** Hôm nay tâm trạng bạn khá thất thường. Đừng để cảm xúc tiêu cực ảnh hưởng đến mối quan hệ. Đi dạo một vòng cho khuây khỏa nhé! 🚶",
-        ]
-        career_fortunes = [
-            "💼 **Sự nghiệp:** Một cơ hội lớn đang đến gần! Hãy chuẩn bị sẵn sàng và đừng ngại nắm bắt. Thành công đang chờ bạn phía trước! 🚀",
-            "💼 **Sự nghiệp:** Hôm nay là ngày lý tưởng để lên kế hoạch cho tương lai. Những ý tưởng sáng tạo sẽ đến bất ngờ, hãy ghi chép lại ngay! 📝",
-            "💼 **Sự nghiệp:** Cẩn thận với những lời hứa hẹn từ đồng nghiệp. Hãy tập trung vào công việc của mình và đừng để bị phân tâm bởi drama công sở! ☕",
-            "💼 **Sự nghiệp:** Một thử thách nhỏ sẽ xuất hiện hôm nay, nhưng đừng lo - bạn hoàn toàn có thể vượt qua! Hãy tự tin vào năng lực của mình! 💪",
-            "💼 **Sự nghiệp:** Tin vui về tài chính hoặc thăng tiến đang trên đường đến! Có thể không phải hôm nay, nhưng rất sớm thôi. Hãy kiên nhẫn! 🌟",
-        ]
-        health_fortunes = [
-            "🏥 **Sức khỏe:** Năng lượng hôm nay ở mức cao! Hãy tận dụng để tập thể dục hoặc làm những việc cần sức lực. Cơ thể bạn sẽ cảm ơn bạn! 🏃",
-            "🏥 **Sức khỏe:** Hơi mệt mỏi một chút, có thể do bạn thức khuya dạo này. Tối nay hãy đi ngủ sớm và uống nhiều nước nhé! 💧",
-            "🏥 **Sức khỏe:** Tinh thần rất tốt nhưng thể chất hơi đuối. Đừng quên ăn sáng đầy đủ và bổ sung vitamin. Sức khỏe là vàng! 🍎",
-            "🏥 **Sức khỏe:** Cẩn thận với các bệnh vặt như cảm cúm, đau đầu. Mang theo áo khoác khi ra ngoài và hạn chế đồ lạnh nhé! 🤧",
-            "🏥 **Sức khỏe:** Hôm nay cơ thể bạn đang ở trạng thái cân bằng tuyệt vời. Tiếp tục duy trì lối sống lành mạnh này nhé! 🧘",
-        ]
-        advices = [
-            "💡 **Lời khuyên:** Đừng ngại nói lên suy nghĩ của mình. Im lặng đôi khi không phải là vàng, mà là bỏ lỡ cơ hội!",
-            "💡 **Lời khuyên:** Hãy làm một việc tốt ngày hôm nay. Một nụ cười, một lời khen cũng đủ làm thế giới tốt đẹp hơn! 🌈",
-            "💡 **Lời khuyên:** Đừng quá lo lắng về tương lai. Hiện tại mới là món quà quý giá nhất. Sống trọn từng khoảnh khắc! 🎁",
-            "💡 **Lời khuyên:** Hôm nay hãy thử một điều gì đó mới mẻ! Một món ăn lạ, một bài hát mới, hay đơn giản là đi một con đường khác đến trường/công ty! 🗺️",
-            "💡 **Lời khuyên:** Hãy gửi một lời cảm ơn đến ai đó đã giúp đỡ bạn. Lòng biết ơn sẽ mang lại nhiều điều tốt đẹp! 🙏",
-        ]
-        lucky_numbers = sorted(random.sample(range(1, 100), 5))
-        lucky_colors = random.choice(["🔴 Đỏ", "🔵 Xanh dương", "🟢 Xanh lá", "🟡 Vàng", "🟣 Tím", "🟠 Cam", "⚪ Trắng", "⚫ Đen", "🩷 Hồng"])
+        # Lấy cung hoàng đạo từ hồ sơ
+        zodiac_key = None
+        try:
+            async with await self.bot.db_manager.connect() as conn:
+                async with conn.execute("SELECT birthday FROM royal_profiles WHERE user_id = ?", (ctx.author.id,)) as cursor:
+                    row = await cursor.fetchone()
+            if row and row[0] and row[0] != "Chưa cập nhật 📅":
+                zodiac_key = calc_zodiac(row[0])
+        except:
+            pass
 
-        today = datetime.now().strftime("%d/%m/%Y")
+        if not zodiac_key or zodiac_key not in ZODIAC_MAP:
+            return await ctx.send(
+                "❌ Không thể xác định cung hoàng đạo của bạn!\n"
+                "📝 Hãy cập nhật **ngày sinh** trong hồ sơ trước: `/sua_hoso ngay_sinh:dd/mm/yyyy`\n"
+                "💡 Ví dụ: `/sua_hoso ngay_sinh:26/08/2000`"
+            )
+
+        api_sign = ZODIAC_MAP[zodiac_key]
+        api_url = f"https://aztro.sameerkumar.website/?sign={api_sign}&day=today"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(api_url) as resp:
+                    if resp.status != 200:
+                        return await ctx.send("❌ Máy chủ tử vi đang bận, thử lại sau nhé!")
+                    data = await resp.json()
+        except Exception:
+            return await ctx.send("❌ Không thể kết nối đến máy chủ tử vi. Thử lại sau nhé!")
+
+        compat_vn = COMPATIBILITY_VN.get(data.get("compatibility", "").lower(), data.get("compatibility", "???"))
+
         embed = discord.Embed(
-            title="🔮 QUẢ CẦU TIÊN TRI ROYAL CITY 🔮",
-            description=f"✨ **Vận mệnh ngày {today} cho {ctx.author.mention}** ✨\n━━━━━━━━━━━━━━━━━━━━━━━",
+            title=f"🔮 TỬ VI HÔM NAY CHO {ctx.author.display_name} 🔮",
+            description=f"✨ **{zodiac_key}** ({ZODIAC_DATES.get(zodiac_key, '')}) | Ngày {data.get('current_date', 'hôm nay')}",
             color=discord.Color.purple()
         )
-        embed.add_field(name="", value=random.choice(love_fortunes), inline=False)
-        embed.add_field(name="", value=random.choice(career_fortunes), inline=False)
-        embed.add_field(name="", value=random.choice(health_fortunes), inline=False)
-        embed.add_field(name="", value=random.choice(advices), inline=False)
-        embed.add_field(name="🎲 **Con số may mắn:**", value=f"`{' - '.join(str(n) for n in lucky_numbers)}`", inline=True)
-        embed.add_field(name="🌈 **Màu sắc may mắn:**", value=lucky_colors, inline=True)
-        embed.set_footer(text="🔮 Bói vui có duyên - Tin thì linh thiêng, không tin thì... cũng vui! | Royal City Fortune")
+
+        embed.add_field(name="📝 **Tổng quan:**", value=data.get("description", "Không có dữ liệu."), inline=False)
+        embed.add_field(name="😊 **Tâm trạng:**", value=data.get("mood", "???"), inline=True)
+        embed.add_field(name="💞 **Hợp nhất với:**", value=compat_vn, inline=True)
+        embed.add_field(name="🌈 **Màu sắc may mắn:**", value=data.get("color", "???"), inline=True)
+        embed.add_field(name="🎲 **Con số may mắn:**", value=f"`{data.get('lucky_number', '???')}`", inline=True)
+        embed.add_field(name="⏰ **Khung giờ may mắn:**", value=data.get("lucky_time", "???"), inline=True)
+
+        embed.set_thumbnail(url=ctx.author.avatar.url if ctx.author.avatar else None)
+        embed.set_footer(text="🔮 Dữ liệu tử vi thật từ Aztro API | Royal City Fortune")
 
         await ctx.send(embed=embed)
 

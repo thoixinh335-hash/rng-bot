@@ -251,16 +251,7 @@ class AdminApp(ctk.CTk):
             avatar_frame = ctk.CTkFrame(card, fg_color="transparent", width=56, height=56)
             avatar_frame.pack(side="left", padx=10, pady=8)
             avatar_frame.pack_propagate(False)
-
-            if discord and discord.get("avatar_url"):
-                avatar_img = load_avatar(discord["avatar_url"], 48)
-                if avatar_img:
-                    avatar_label = ctk.CTkLabel(avatar_frame, image=avatar_img, text="")
-                    avatar_label.pack(expand=True)
-                else:
-                    ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
-            else:
-                ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
+            ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
 
             # Middle: info
             info_frame = ctk.CTkFrame(card, fg_color="transparent")

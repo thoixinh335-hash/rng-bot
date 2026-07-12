@@ -503,8 +503,6 @@ class ServerProfileCog(commands.Cog):
             await interaction.followup.send("❌ Gặp sự cố kết nối trong lúc kết xuất ảnh QR Code!")
 
     # ==========================================
-    # CÁC LỆNH ĐIỀU HÀNH BAN QUẢN TRỊ (ADMIN)
-    # ==========================================
     @app_commands.command(name="ban", description="Trục xuất thành viên phá hoại kèm tùy chỉnh thời gian và xóa tin nhắn (Chỉ dành cho Admin)")
     @app_commands.choices(xoa_tin_nhan=[
         app_commands.Choice(name="Không xóa tin nhắn nào", value=0), 
@@ -578,82 +576,6 @@ class ServerProfileCog(commands.Cog):
         await interaction.followup.send(f"✅ Gỡ ban thành công cho {user_name}.", ephemeral=True)
 
     # ==========================================
-    # LỆNH MỚI: HOÁN ĐỔI SỐ HỒ SƠ 
-    # ==========================================
-    @app_commands.command(name="doi_so_hoso", description="Hoán đổi số thứ tự hồ sơ giữa hai cư dân (Chỉ dành cho Admin tối cao)")
-    @app_commands.describe(nguoi_a="Chọn cư dân thứ nhất", nguoi_b="Chọn cư dân thứ hai")
-    async def swap_profile_id(self, interaction: discord.Interaction, nguoi_a: discord.Member, nguoi_b: discord.Member):
-        if interaction.user.id != ADMIN_ID:
-            return await interaction.response.send_message("❌ Cậu không có quyền tối cao để thực hiện thao tác này!", ephemeral=True)
-        
-        await interaction.response.defer(ephemeral=True)
-        
-        async with await self.bot.db_manager.connect() as conn:
-            # Truy xuất ID hồ sơ hiện tại của 2 người
-            async with conn.execute("SELECT id FROM royal_profiles WHERE user_id = ?", (nguoi_a.id,)) as cursor_a:
-                row_a = await cursor_a.fetchone()
-            async with conn.execute("SELECT id FROM royal_profiles WHERE user_id = ?", (nguoi_b.id,)) as cursor_b:
-                row_b = await cursor_b.fetchone()
-                
-            if not row_a:
-                return await interaction.followup.send(f"❌ {nguoi_a.mention} chưa có hồ sơ định danh trong hệ thống!")
-            if not row_b:
-                return await interaction.followup.send(f"❌ {nguoi_b.mention} chưa có hồ sơ định danh trong hệ thống!")
-                
-            id_a = row_a[0]
-            id_b = row_b[0]
-            
-            if id_a == id_b:
-                return await interaction.followup.send("❌ Hai người này là một mà, làm sao tráo đổi được?")
-                
-            # Đảo mã an toàn qua biến tạm (-1) để không vi phạm quy tắc PRIMARY KEY UNIQUE của CSDL
-            await conn.execute("UPDATE royal_profiles SET id = -1 WHERE user_id = ?", (nguoi_a.id,))
-            await conn.execute("UPDATE royal_profiles SET id = ? WHERE user_id = ?", (id_a, nguoi_b.id,))
-            await conn.execute("UPDATE royal_profiles SET id = ? WHERE user_id = ?", (id_b, nguoi_a.id,))
-            await conn.commit()
-            
-        embed = discord.Embed(
-            title="🔄 HOÁN ĐỔI SỐ HỒ SƠ THÀNH CÔNG",
-            description=f"Hai cư dân đã được hoán đổi danh tính:\n\n"
-                        f"👤 {nguoi_a.mention}: `#{id_a:03d}` ➡️ **`#{id_b:03d}`**\n"
-                        f"👤 {nguoi_b.mention}: `#{id_b:03d}` ➡️ **`#{id_a:03d}`**",
-            color=discord.Color.purple()
-        )
-        await interaction.followup.send(embed=embed)
-
-    # ==========================================
-    # LỆNH MỚI: XÓA TRẮNG DỮ LIỆU HỒ SƠ 
-    # ==========================================
-    @app_commands.command(name="reset_hoso", description="Xóa trắng hoàn toàn hồ sơ của một người để làm lại từ đầu (Chỉ dành cho Admin tối cao)")
-    @app_commands.describe(user="Chọn cư dân cần xóa dữ liệu thẻ")
-    async def reset_profile(self, interaction: discord.Interaction, user: discord.Member):
-        if interaction.user.id != ADMIN_ID:
-            return await interaction.response.send_message("❌ Cậu không có quyền tối cao để thực hiện thao tác này!", ephemeral=True)
-            
-        await interaction.response.defer(ephemeral=True)
-        
-        async with await self.bot.db_manager.connect() as conn:
-            # Check xem có dữ liệu không và lấy tình trạng hôn nhân (nếu có)
-            async with conn.execute("SELECT id, spouse_id FROM royal_profiles WHERE user_id = ?", (user.id,)) as cursor:
-                row = await cursor.fetchone()
-                
-            if not row:
-                return await interaction.followup.send(f"❌ {user.mention} hiện tại không có hồ sơ nào trong hệ thống, không cần reset!")
-                
-            spouse_id = row[1]
-            
-            # Quét sạch hồ sơ của người bị chỉ định
-            await conn.execute("DELETE FROM royal_profiles WHERE user_id = ?", (user.id,))
-            
-            # Tự động cắt đứt mối quan hệ để chống lỗi hệ thống cho người còn lại
-            if spouse_id:
-                await conn.execute("UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL WHERE user_id = ?", (spouse_id,))
-                
-            await conn.commit()
-            
-        await interaction.followup.send(f"✅ Đã xóa toàn bộ dữ liệu hồ sơ của {user.mention}.\n> 💡 *Mẹo: Bây giờ cậu có thể dùng lệnh `/cap_hoso` để cấp cho người này một số định danh hoàn toàn mới nhé!*")
-
-
     # ==========================================
     # LỆNH CẤP/SỬA/TƯƠNG TÁC HỒ SƠ 
     # ==========================================
@@ -984,22 +906,6 @@ class ServerProfileCog(commands.Cog):
             color=discord.Color.from_rgb(255, 105, 180)
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-    @app_commands.command(name="cap_hoso", description="Cấp số hiệu hồ sơ cư dân cho một thành viên (Chỉ Admin)")
-    async def cap_hoso(self, interaction: discord.Interaction, user: discord.Member):
-        await interaction.response.defer(ephemeral=True)
-        if interaction.user.id != ADMIN_ID: return await interaction.followup.send("❌ Bạn không có quyền hạn!", ephemeral=True)
-        if user.bot: return await interaction.followup.send("❌ Không cấp thẻ cho Bot!", ephemeral=True)
-        async with await self.bot.db_manager.connect() as conn:
-            async with conn.execute("SELECT id FROM royal_profiles WHERE user_id = ?", (user.id,)) as cursor: exist = await cursor.fetchone()
-            if exist: return await interaction.followup.send("⚠️ Họ đã có hồ sơ rồi! Cậu cần dùng lệnh `/reset_hoso` trước nếu muốn cấp lại.", ephemeral=True)
-            now = datetime.utcnow().isoformat()
-            cursor = await conn.execute("INSERT INTO royal_profiles (user_id, updated_at) VALUES (?, ?)", (user.id, now))
-            await conn.commit()
-            new_id = cursor.lastrowid
-        embed = discord.Embed(title="🎉 CHÚC MỪNG CƯ DÂN MỚI!", description=f"Thành viên {user.mention} đã được cấp mã số định danh: **`#{new_id:03d}`**", color=discord.Color.green())
-        await interaction.channel.send(embed=embed)
-        await interaction.followup.send("✅ Cấp thành công.", ephemeral=True)
 
     @app_commands.command(name="sua_hoso", description="Chỉnh sửa thông tin thẻ cư dân của bạn")
     async def hoso_edit(self, interaction: discord.Interaction,

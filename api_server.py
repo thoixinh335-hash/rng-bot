@@ -2,7 +2,7 @@
 Royal City Admin API - Chay tren VPS cung bot
 """
 from flask import Flask, jsonify, request
-import sqlite3, os, json, requests
+import sqlite3, os, json, requests, shutil
 from datetime import datetime
 
 app = Flask(__name__)
@@ -10,6 +10,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "database", "rng.db")
 CONFIG_PATH = os.path.join(BASE_DIR, "config", "config.json")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+ROLES_PATH = os.path.join(BASE_DIR, "data", "roles.json")
 
 # === Discord API (khong can token, public user data) ===
 DISCORD_API = "https://discord.com/api/v10"
@@ -39,8 +41,11 @@ def get_db():
 
 @app.route("/")
 def home():
-    return jsonify({"name": "Royal City Admin API", "status": "running"})
+    return jsonify({"name": "Royal City Admin API", "status": "running", "version": "2.0"})
 
+# ==========================================
+# DASHBOARD
+# ==========================================
 @app.route("/api/dashboard")
 def dashboard():
     db = get_db(); c = db.cursor()
@@ -51,6 +56,8 @@ def dashboard():
     c.execute("SELECT COUNT(*) FROM confessions"); confessions = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM royal_profiles WHERE spouse_id IS NOT NULL"); married = c.fetchone()[0]
     c.execute("SELECT MAX(love_points) FROM royal_profiles"); max_love = c.fetchone()[0] or 0
+    c.execute("SELECT COUNT(*) FROM daily_missions"); missions = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM seasons"); seasons = c.fetchone()[0]
     db_size = os.path.getsize(DB_PATH) / 1024
     # Count logs
     latest_log = os.path.join(LOGS_DIR, "latest.log")
@@ -59,9 +66,13 @@ def dashboard():
     return jsonify({
         "profiles": profiles, "players": players, "collections": collections,
         "history": history, "confessions": confessions, "married": married,
-        "max_love": max_love, "db_size_kb": round(db_size, 1), "log_lines": log_lines
+        "max_love": max_love, "db_size_kb": round(db_size, 1), "log_lines": log_lines,
+        "missions": missions, "seasons": seasons
     })
 
+# ==========================================
+# PROFILES (royal_profiles)
+# ==========================================
 @app.route("/api/profiles")
 def profiles():
     db = get_db(); c = db.cursor()
@@ -75,7 +86,6 @@ def profiles():
         c.execute("SELECT * FROM royal_profiles ORDER BY id")
     rows = [dict(r) for r in c.fetchall()]
     db.close()
-    # Them Discord user data cho moi ho so
     for row in rows:
         uid = row.get("user_id")
         if uid:
@@ -95,10 +105,177 @@ def update_profile(pid):
 @app.route("/api/profiles/<int:pid>", methods=["DELETE"])
 def delete_profile(pid):
     db = get_db()
+    # Get user_id before delete
+    c = db.cursor()
+    c.execute("SELECT user_id FROM royal_profiles WHERE id=?", (pid,))
+    row = c.fetchone()
+    if row:
+        uid = row[0]
+        # Cắt đứt quan hệ nếu có
+        db.execute("UPDATE royal_profiles SET spouse_id=NULL WHERE spouse_id=?", (uid,))
     db.execute("DELETE FROM royal_profiles WHERE id=?", (pid,))
     db.commit(); db.close()
     return jsonify({"ok": True})
 
+# ==========================================
+# PLAYERS (RNG players)
+# ==========================================
+@app.route("/api/players")
+def list_players():
+    db = get_db(); c = db.cursor()
+    search = request.args.get("search", "")
+    limit = min(int(request.args.get("limit", 100)), 500)
+
+    if search:
+        if search.isdigit():
+            c.execute("""SELECT p.*,
+                (SELECT COUNT(*) FROM collections WHERE user_id = p.user_id) as collection_count
+                FROM players p WHERE CAST(p.user_id AS TEXT) LIKE ? OR p.username LIKE ?
+                ORDER BY p.total_rolls DESC LIMIT ?""",
+                (f"%{search}%", f"%{search}%", limit))
+        else:
+            c.execute("""SELECT p.*,
+                (SELECT COUNT(*) FROM collections WHERE user_id = p.user_id) as collection_count
+                FROM players p ORDER BY p.total_rolls DESC LIMIT ?""", (limit,))
+    else:
+        c.execute("""SELECT p.*,
+            (SELECT COUNT(*) FROM collections WHERE user_id = p.user_id) as collection_count
+            FROM players p ORDER BY p.total_rolls DESC LIMIT ?""", (limit,))
+    rows = [dict(r) for r in c.fetchall()]
+    db.close()
+    for row in rows:
+        uid = row.get("user_id")
+        if uid:
+            row["discord"] = get_discord_user(uid)
+    return jsonify(rows)
+
+@app.route("/api/players/<int:user_id>", methods=["DELETE"])
+def delete_player(user_id):
+    db = get_db()
+    db.execute("DELETE FROM players WHERE user_id=?", (user_id,))
+    db.execute("DELETE FROM collections WHERE user_id=?", (user_id,))
+    db.execute("DELETE FROM history WHERE user_id=?", (user_id,))
+    db.execute("DELETE FROM daily_missions WHERE user_id=?", (user_id,))
+    db.execute("DELETE FROM roll_inventory WHERE user_id=?", (user_id,))
+    db.commit(); db.close()
+    return jsonify({"ok": True, "message": f"Đã xóa toàn bộ dữ liệu RNG của user {user_id}"})
+
+# ==========================================
+# SEASONS
+# ==========================================
+@app.route("/api/seasons")
+def list_seasons():
+    db = get_db(); c = db.cursor()
+    c.execute("SELECT * FROM seasons ORDER BY season_number DESC")
+    rows = [dict(r) for r in c.fetchall()]
+    db.close()
+    return jsonify(rows)
+
+# ==========================================
+# CONFESSIONS
+# ==========================================
+@app.route("/api/confessions")
+def list_confessions():
+    db = get_db(); c = db.cursor()
+    limit = min(int(request.args.get("limit", 50)), 200)
+    c.execute("SELECT id, user_id, content, created_at FROM confessions ORDER BY id DESC LIMIT ?", (limit,))
+    rows = [dict(r) for r in c.fetchall()]
+    db.close()
+    for row in rows:
+        uid = row.get("user_id")
+        if uid:
+            row["discord"] = get_discord_user(uid)
+    return jsonify(rows)
+
+@app.route("/api/confessions/<int:cid>", methods=["DELETE"])
+def delete_confession(cid):
+    db = get_db()
+    db.execute("DELETE FROM confessions WHERE id=?", (cid,))
+    db.commit(); db.close()
+    return jsonify({"ok": True})
+
+# ==========================================
+# BACKUP / RESTORE
+# ==========================================
+@app.route("/api/backups")
+def list_backups():
+    os.makedirs(ASSETS_DIR, exist_ok=True)
+    backups = []
+    for f in sorted(os.listdir(ASSETS_DIR)):
+        if f.startswith("rng_backup_") and f.endswith(".db"):
+            fpath = os.path.join(ASSETS_DIR, f)
+            size_kb = round(os.path.getsize(fpath) / 1024, 1)
+            backups.append({"filename": f, "size_kb": size_kb, "created": f.replace("rng_backup_", "").replace(".db", "")})
+    return jsonify(backups)
+
+@app.route("/api/backup", methods=["POST"])
+def create_backup():
+    os.makedirs(ASSETS_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(ASSETS_DIR, f"rng_backup_{timestamp}.db")
+    try:
+        shutil.copyfile(DB_PATH, backup_path)
+        return jsonify({"ok": True, "filename": f"rng_backup_{timestamp}.db"})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route("/api/restore/<filename>", methods=["POST"])
+def restore_backup(filename):
+    source = os.path.join(ASSETS_DIR, filename)
+    if not os.path.exists(source):
+        return jsonify({"error": "File không tồn tại"})
+    try:
+        shutil.copyfile(source, DB_PATH)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route("/api/backups/<filename>", methods=["DELETE"])
+def delete_backup(filename):
+    fpath = os.path.join(ASSETS_DIR, filename)
+    if os.path.exists(fpath):
+        os.remove(fpath)
+        return jsonify({"ok": True})
+    return jsonify({"error": "File không tồn tại"})
+
+# ==========================================
+# MAINTENANCE
+# ==========================================
+@app.route("/api/reset_all", methods=["POST"])
+def reset_all():
+    db = get_db()
+    db.execute("DELETE FROM collections")
+    db.execute("DELETE FROM history")
+    db.execute("DELETE FROM roll_inventory")
+    db.execute("DELETE FROM daily_missions")
+    db.execute("DELETE FROM players")
+    db.execute("DELETE FROM seasons")
+    db.commit(); db.close()
+    return jsonify({"ok": True, "message": "Đã reset toàn bộ dữ liệu RNG"})
+
+@app.route("/api/reset_player_all", methods=["POST"])
+def reset_all_players():
+    db = get_db()
+    db.execute("DELETE FROM collections")
+    db.execute("DELETE FROM history")
+    db.execute("DELETE FROM roll_inventory")
+    db.execute("DELETE FROM daily_missions")
+    db.execute("DELETE FROM players")
+    db.commit(); db.close()
+    return jsonify({"ok": True, "message": "Đã xóa toàn bộ dữ liệu người chơi RNG"})
+
+@app.route("/api/reload_config", methods=["POST"])
+def reload_config():
+    """Ghi lại signal để bot reload (thực tế là đọc config từ file)"""
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        return jsonify({"ok": True, "config": config})
+    return jsonify({"error": "Config không tồn tại"})
+
+# ==========================================
+# LOGS
+# ==========================================
 @app.route("/api/logs")
 def logs():
     latest_log = os.path.join(LOGS_DIR, "latest.log")
@@ -115,6 +292,9 @@ def clear_logs():
         if os.path.exists(fpath): open(fpath, "w").close()
     return jsonify({"ok": True})
 
+# ==========================================
+# CONFIG
+# ==========================================
 @app.route("/api/config", methods=["GET", "PUT"])
 def config():
     if request.method == "GET":
@@ -126,6 +306,17 @@ def config():
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(request.json, f, indent=2, ensure_ascii=False)
         return jsonify({"ok": True})
+
+# ==========================================
+# ROLES (data/roles.json)
+# ==========================================
+@app.route("/api/roles")
+def list_roles():
+    if os.path.exists(ROLES_PATH):
+        with open(ROLES_PATH, "r", encoding="utf-8") as f:
+            roles = json.load(f)
+        return jsonify(roles)
+    return jsonify([])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5555, debug=False)

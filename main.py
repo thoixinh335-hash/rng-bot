@@ -84,7 +84,6 @@ class RNGBot(commands.Bot):
             "cogs.collection",
             "cogs.history",
             "cogs.leaderboard",
-            "cogs.admin",
             "cogs.missions",
             "cogs.boost",
             "cogs.avatar",

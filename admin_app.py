@@ -5,25 +5,14 @@ Ket noi API qua VPS
 import customtkinter as ctk
 import requests, json, io, threading
 from datetime import datetime
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from PIL import Image, ImageDraw, ImageFont
-import io
+import io as io_module
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-API_URL = "http://160.250.247.142/rng-api"
-
-def load_avatar(url, size=48):
-    try:
-        import requests
-        resp = requests.get(url, timeout=5)
-        if resp.status_code == 200:
-            img = Image.open(io.BytesIO(resp.content))
-            img = img.resize((size, size), Image.LANCZOS)
-            return ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
-    except: pass
-    return None
+API_URL = "http://160.250.247.142:5555"
 
 # Cache avatar
 _avatar_cache = {}
@@ -34,8 +23,8 @@ def load_avatar(url, size=48):
     try:
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
-            img = PILImage.open(io.BytesIO(resp.content))
-            img = img.resize((size, size), PILImage.LANCZOS)
+            img = Image.open(io_module.BytesIO(resp.content))
+            img = img.resize((size, size), Image.LANCZOS)
             ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
             _avatar_cache[url] = ctk_img
             return ctk_img
@@ -48,7 +37,7 @@ class AdminApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Royal City - Admin Panel")
-        self.geometry("1200x750")
+        self.geometry("1280x780")
         self.minsize(1000, 600)
         ctk.set_appearance_mode("dark")
 
@@ -59,25 +48,38 @@ class AdminApp(ctk.CTk):
 
         # Logo
         logo_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        logo_frame.pack(pady=(20, 30))
+        logo_frame.pack(pady=(20, 20))
         ctk.CTkLabel(logo_frame, text="🏰", font=("", 40)).pack()
         ctk.CTkLabel(logo_frame, text="ROYAL CITY", font=("", 16, "bold")).pack()
-        ctk.CTkLabel(logo_frame, text="Admin Panel", font=("", 11), text_color="gray").pack()
+        ctk.CTkLabel(logo_frame, text="Admin Panel v2.0", font=("", 11), text_color="gray").pack()
 
         # Nav buttons
         self.nav_btns = {}
         nav_items = [
             ("dashboard", "📊 Dashboard"),
-            ("profiles", "👤 Hồ sơ cư dân"),
-            ("logs", "📋 Logs hệ thống"),
+            ("profiles", "👤 Hồ sơ"),
+            ("players", "🎮 Players RNG"),
+            ("seasons", "🏆 Seasons"),
+            ("confessions", "💌 Confessions"),
+            ("backup", "💾 Backup"),
+            ("logs", "📋 Logs"),
             ("config", "⚙️ Config"),
         ]
         for key, label in nav_items:
             btn = ctk.CTkButton(self.sidebar, text=label, fg_color="transparent",
                                 anchor="w", font=("", 13), height=40,
                                 command=lambda k=key: self.switch_tab(k))
-            btn.pack(fill="x", padx=10, pady=3)
+            btn.pack(fill="x", padx=10, pady=2)
             self.nav_btns[key] = btn
+
+        # Separator
+        sep = ctk.CTkFrame(self.sidebar, height=1, fg_color="gray")
+        sep.pack(fill="x", padx=15, pady=10)
+
+        # Maintenance button
+        self.maintain_btn = ctk.CTkButton(self.sidebar, text="⚠️ Reset All", fg_color="#C0392B",
+                                          font=("", 12), command=self.open_maintenance)
+        self.maintain_btn.pack(fill="x", padx=10, pady=5)
 
         # Connection status at bottom
         self.conn_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
@@ -111,13 +113,13 @@ class AdminApp(ctk.CTk):
         url = f"{API_URL}{path}"
         try:
             if method == "GET":
-                return requests.get(url, timeout=10).json()
+                return requests.get(url, timeout=30).json()
             elif method == "PUT":
-                return requests.put(url, json=data, timeout=10).json()
+                return requests.put(url, json=data, timeout=30).json()
             elif method == "DELETE":
-                return requests.delete(url, timeout=10).json()
+                return requests.delete(url, timeout=30).json()
             elif method == "POST":
-                return requests.post(url, timeout=10).json()
+                return requests.post(url, json=data, timeout=30).json()
         except Exception as e:
             return {"error": str(e)}
 
@@ -131,23 +133,31 @@ class AdminApp(ctk.CTk):
         for w in self.tab_frame.winfo_children():
             w.destroy()
 
-        if key == "dashboard":
-            self.header_title.configure(text="📊 Dashboard")
-            self.build_dashboard()
-        elif key == "profiles":
-            self.header_title.configure(text="👤 Hồ sơ cư dân")
-            self.build_profiles()
-        elif key == "logs":
-            self.header_title.configure(text="📋 Logs hệ thống")
-            self.build_logs()
-        elif key == "config":
-            self.header_title.configure(text="⚙️ Config")
-            self.build_config()
-
+        tab_map = {
+            "dashboard": ("📊 Dashboard", self.build_dashboard),
+            "profiles": ("👤 Hồ sơ cư dân", self.build_profiles),
+            "players": ("🎮 Players RNG", self.build_players),
+            "seasons": ("🏆 Seasons", self.build_seasons),
+            "confessions": ("💌 Confessions", self.build_confessions),
+            "backup": ("💾 Backup & Restore", self.build_backup),
+            "logs": ("📋 Logs hệ thống", self.build_logs),
+            "config": ("⚙️ Config", self.build_config),
+        }
+        title, builder = tab_map[key]
+        self.header_title.configure(text=title)
+        builder()
         self.current_tab = key
 
     def refresh_current(self):
         self.switch_tab(self.current_tab)
+
+    def api_task(self, path, method="GET", data=None, callback=None):
+        """Chạy API call trong thread riêng"""
+        def task():
+            result = self.api(path, method, data)
+            if callback:
+                self.after(0, callback, result)
+        threading.Thread(target=task, daemon=True).start()
 
     # ==========================================
     # DASHBOARD
@@ -158,8 +168,12 @@ class AdminApp(ctk.CTk):
             ctk.CTkLabel(self.tab_frame, text=f"❌ {data['error']}", font=("", 14), text_color="red").pack(pady=30)
             return
 
-        # Stat cards row 1
-        row1 = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
+        # Main grid
+        main = ctk.CTkScrollableFrame(self.tab_frame)
+        main.pack(fill="both", expand=True)
+
+        # Row 1: Stats
+        row1 = ctk.CTkFrame(main, fg_color="transparent")
         row1.pack(fill="x", padx=5, pady=(10, 5))
         cards = [
             ("👤 Hồ sơ", data["profiles"], "cư dân"),
@@ -174,14 +188,14 @@ class AdminApp(ctk.CTk):
             ctk.CTkLabel(card, text=str(val), font=("", 28, "bold")).pack()
             ctk.CTkLabel(card, text=label, font=("", 11), text_color="gray").pack(pady=(0, 10))
 
-        # Stat cards row 2
-        row2 = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
+        # Row 2
+        row2 = ctk.CTkFrame(main, fg_color="transparent")
         row2.pack(fill="x", padx=5, pady=5)
         cards2 = [
             ("📦 Bộ sưu tập", data["collections"], "danh hiệu"),
             ("🎲 Lượt roll", data["history"], "lượt"),
             ("💌 Confessions", data["confessions"], "tâm sự"),
-            ("💾 Dung lượng DB", data["db_size_kb"], "KB"),
+            ("📋 Nhiệm vụ", data.get("missions", 0), "missions"),
         ]
         for icon, val, label in cards2:
             card = ctk.CTkFrame(row2, corner_radius=10)
@@ -190,10 +204,24 @@ class AdminApp(ctk.CTk):
             ctk.CTkLabel(card, text=str(val), font=("", 28, "bold")).pack()
             ctk.CTkLabel(card, text=label, font=("", 11), text_color="gray").pack(pady=(0, 10))
 
+        # Row 3: DB + Seasons
+        row3 = ctk.CTkFrame(main, fg_color="transparent")
+        row3.pack(fill="x", padx=5, pady=5)
+        cards3 = [
+            ("💾 Dung lượng DB", f"{data['db_size_kb']} KB", ""),
+            ("🏆 Seasons", data.get("seasons", 0), "mùa"),
+            ("📋 Dòng log", data["log_lines"], "dòng"),
+        ]
+        for icon, val, label in cards3:
+            card = ctk.CTkFrame(row3, corner_radius=10)
+            card.pack(side="left", fill="x", expand=True, padx=5)
+            ctk.CTkLabel(card, text=icon, font=("", 24)).pack(pady=(10, 0))
+            ctk.CTkLabel(card, text=str(val), font=("", 28, "bold")).pack()
+            ctk.CTkLabel(card, text=label, font=("", 11), text_color="gray").pack(pady=(0, 10))
+
         # Footer
-        footer = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
-        footer.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(footer, text=f"📋 {data['log_lines']} dòng log", font=("", 11), text_color="gray").pack(side="left", padx=10)
+        footer = ctk.CTkFrame(main, fg_color="transparent")
+        footer.pack(fill="x", padx=5, pady=10)
         ctk.CTkLabel(footer, text=f"🕐 Cập nhật: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}",
                      font=("", 11), text_color="gray").pack(side="right", padx=10)
 
@@ -209,8 +237,6 @@ class AdminApp(ctk.CTk):
         self.search_entry.pack(side="left", padx=5)
         ctk.CTkButton(search_frame, text="Tìm", width=70, command=self.search_profiles).pack(side="left", padx=5)
         ctk.CTkButton(search_frame, text="Tất cả", width=70, fg_color="gray", command=self.load_profiles).pack(side="left", padx=5)
-
-        ctk.CTkLabel(search_frame, text="", font=("", 11)).pack(side="left", padx=20)
 
         self.profile_count = ctk.CTkLabel(search_frame, text="", font=("", 12), text_color="gray")
         self.profile_count.pack(side="right", padx=10)
@@ -254,18 +280,17 @@ class AdminApp(ctk.CTk):
             spouse = row.get("spouse_id")
             love = row.get("love_points", 0)
             status = row.get("status", "")
-            discord = row.get("discord_user", {})
+            discord = row.get("discord", {})
 
             card = ctk.CTkFrame(self.profile_list, corner_radius=8)
             card.pack(fill="x", padx=5, pady=4)
 
-            # Left: avatar
+            # Avatar
             avatar_frame = ctk.CTkFrame(card, fg_color="transparent", width=56, height=56)
             avatar_frame.pack(side="left", padx=10, pady=8)
             avatar_frame.pack_propagate(False)
 
-            discord = row.get("discord", {})
-            avatar_url = discord.get("avatar_url") if discord else None
+            avatar_url = discord.get("avatar_url")
             if avatar_url:
                 avatar_img = load_avatar(avatar_url)
                 if avatar_img:
@@ -275,17 +300,14 @@ class AdminApp(ctk.CTk):
             else:
                 ctk.CTkLabel(avatar_frame, text="👤", font=("", 24)).pack(expand=True)
 
-            # Middle: info
+            # Info
             info_frame = ctk.CTkFrame(card, fg_color="transparent")
             info_frame.pack(side="left", fill="both", expand=True, padx=5, pady=8)
 
-            name = discord.get("username") if discord else f"User {row.get('user_id')}"
-            if not discord:
-                ctk.CTkLabel(info_frame, text=f"#{row.get('id'):03d} • User ID:{row.get('user_id')}", font=("", 14, "bold")).pack(anchor="w")
-            ctk.CTkLabel(info_frame, text=f"ID: {row.get('user_id')} | {gender} | 🎂 {bday}", font=("Consolas", 11), text_color="gray").pack(anchor="w")
+            username = discord.get("username") if discord else f"User {uid}"
+            ctk.CTkLabel(info_frame, text=f"#{pid:03d} • {username}", font=("", 14, "bold")).pack(anchor="w")
             ctk.CTkLabel(info_frame, text=f"ID: {uid} | {gender} | 🎂 {bday}", font=("Consolas", 11), text_color="gray").pack(anchor="w")
 
-            # Sub info row
             sub = ctk.CTkFrame(info_frame, fg_color="transparent")
             sub.pack(anchor="w", pady=(3, 0))
             if spouse:
@@ -296,10 +318,9 @@ class AdminApp(ctk.CTk):
             if status:
                 ctk.CTkLabel(sub, text=f"  | 💬 {status[:50]}", font=("", 10), text_color="gray").pack(side="left")
 
-            # Right: buttons
+            # Buttons
             btn_frame = ctk.CTkFrame(card, fg_color="transparent")
             btn_frame.pack(side="right", padx=10, pady=8)
-
             ctk.CTkButton(btn_frame, text="✏️ Sửa", width=60, font=("", 11),
                           command=lambda r=row: self.edit_profile(r)).pack(side="top", pady=2)
             ctk.CTkButton(btn_frame, text="🗑️ Xóa", width=60, font=("", 11), fg_color="#C0392B",
@@ -313,15 +334,12 @@ class AdminApp(ctk.CTk):
         dialog.grab_set()
         dialog.after(200, lambda: dialog.lift())
 
-        # Header
         h = ctk.CTkFrame(dialog, fg_color="transparent")
         h.pack(fill="x", padx=15, pady=(15, 10))
-        discord = row.get("discord_user", {})
-        name = discord.get("display_name") or f"User {row.get('user_id')}"
+        discord = row.get("discord_user", {}) or row.get("discord", {})
+        name = discord.get("username") or f"User {row.get('user_id')}"
         ctk.CTkLabel(h, text=f"✏️ #{pid:03d} • {name}", font=("", 16, "bold")).pack(side="left")
-        ctk.CTkLabel(h, text=f"ID: {row.get('user_id')}", font=("", 11), text_color="gray").pack(side="right")
 
-        # Scrollable form
         form = ctk.CTkScrollableFrame(dialog, height=300)
         form.pack(fill="both", expand=True, padx=15, pady=5)
 
@@ -374,12 +392,353 @@ class AdminApp(ctk.CTk):
                 messagebox.showerror("Lỗi", str(result))
 
     # ==========================================
+    # PLAYERS (RNG)
+    # ==========================================
+    def build_players(self):
+        # Search
+        search_frame = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
+        search_frame.pack(fill="x", padx=5, pady=5)
+
+        self.player_search = ctk.CTkEntry(search_frame, placeholder_text="🔍 Tìm user_id hoặc username...", width=250)
+        self.player_search.pack(side="left", padx=5)
+        ctk.CTkButton(search_frame, text="Tìm", width=70, command=self.search_players).pack(side="left", padx=5)
+        ctk.CTkButton(search_frame, text="Tất cả", width=70, fg_color="gray", command=self.load_players).pack(side="left", padx=5)
+
+        self.player_count = ctk.CTkLabel(search_frame, text="", font=("", 12), text_color="gray")
+        self.player_count.pack(side="right", padx=10)
+
+        # Columns header
+        header_frame = ctk.CTkFrame(self.tab_frame, fg_color="transparent", height=30)
+        header_frame.pack(fill="x", padx=5, pady=(0, 2))
+        for col, w in [("User", 180), ("Username", 150), ("Current Role", 200), ("Highest Rank", 80), ("Luck", 60), ("Rolls", 60), ("Collection", 80), ("Action", 80)]:
+            ctk.CTkLabel(header_frame, text=col, font=("", 11, "bold"), width=w).pack(side="left")
+
+        self.player_list = ctk.CTkScrollableFrame(self.tab_frame)
+        self.player_list.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self.load_players()
+
+    def load_players(self):
+        self._show_players("/api/players")
+
+    def search_players(self):
+        q = self.player_search.get().strip()
+        if q:
+            self._show_players(f"/api/players?search={q}")
+        else:
+            self.load_players()
+
+    def _show_players(self, path):
+        for w in self.player_list.winfo_children():
+            w.destroy()
+
+        data = self.api(path)
+        if "error" in data:
+            ctk.CTkLabel(self.player_list, text=f"❌ {data['error']}").pack(pady=20)
+            return
+        if not data:
+            ctk.CTkLabel(self.player_list, text="Không có người chơi nào.", font=("", 13)).pack(pady=20)
+            self.player_count.configure(text="0 players")
+            return
+
+        self.player_count.configure(text=f"{len(data)} players")
+
+        for p in data:
+            uid = p.get("user_id", "?")
+            username = p.get("username", "Unknown")
+            current_role = p.get("current_role_name", "N/A")
+            highest_rank = p.get("highest_rank", 0)
+            lucky = p.get("lucky", 0)
+            total_rolls = p.get("total_rolls", 0)
+            coll_count = p.get("collection_count", 0)
+            discord = p.get("discord", {})
+
+            card = ctk.CTkFrame(self.player_list, corner_radius=6)
+            card.pack(fill="x", padx=5, pady=2)
+
+            disp_name = discord.get("username") or username
+            ctk.CTkLabel(card, text=str(uid), font=("Consolas", 11), width=180).pack(side="left", padx=5)
+            ctk.CTkLabel(card, text=disp_name[:20], font=("", 11), width=150).pack(side="left")
+            ctk.CTkLabel(card, text=current_role[:25], font=("", 11), width=200).pack(side="left")
+            ctk.CTkLabel(card, text=f"{highest_rank}/30", font=("Consolas", 11), width=80).pack(side="left")
+            ctk.CTkLabel(card, text=f"+{lucky}%", font=("Consolas", 11), width=60).pack(side="left")
+            ctk.CTkLabel(card, text=str(total_rolls), font=("Consolas", 11), width=60).pack(side="left")
+            ctk.CTkLabel(card, text=f"{coll_count}/30", font=("Consolas", 11), width=80).pack(side="left")
+
+            ctk.CTkButton(card, text="🗑️", width=50, fg_color="#C0392B", font=("", 10),
+                          command=lambda u=uid: self.delete_player(u)).pack(side="right", padx=5)
+
+    def delete_player(self, user_id):
+        if messagebox.askyesno("⚠️ Xác nhận", f"Xóa toàn bộ dữ liệu RNG của user {user_id}?\n(Không thể hoàn tác!)"):
+            result = self.api(f"/api/players/{user_id}", method="DELETE")
+            if result.get("ok"):
+                self.refresh_current()
+                messagebox.showinfo("✅", f"Đã xóa player {user_id}")
+            else:
+                messagebox.showerror("Lỗi", str(result))
+
+    # ==========================================
+    # SEASONS
+    # ==========================================
+    def build_seasons(self):
+        data = self.api("/api/seasons")
+        if "error" in data:
+            ctk.CTkLabel(self.tab_frame, text=f"❌ {data['error']}", font=("", 14), text_color="red").pack(pady=30)
+            return
+
+        # Stats
+        if data:
+            current = data[0]
+            info_frame = ctk.CTkFrame(self.tab_frame)
+            info_frame.pack(fill="x", padx=5, pady=10)
+
+            status = current.get("status", "ACTIVE")
+            status_color = "#2ECC71" if status == "ACTIVE" else "#E74C3C"
+
+            ctk.CTkLabel(info_frame, text=f"🏆 Mùa hiện tại: Season {current.get('season_number')}",
+                         font=("", 18, "bold")).pack(pady=(10, 5))
+            ctk.CTkLabel(info_frame, text=f"Status: {status}", font=("", 14), text_color=status_color).pack()
+            ctk.CTkLabel(info_frame, text=f"Bắt đầu: {current.get('start_date', 'N/A')}", font=("", 12), text_color="gray").pack()
+            ctk.CTkLabel(info_frame, text=f"Kết thúc: {current.get('end_date', 'N/A')}", font=("", 12), text_color="gray").pack()
+
+        # Table: All seasons
+        list_frame = ctk.CTkFrame(self.tab_frame)
+        list_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+        header_row = ctk.CTkFrame(list_frame, fg_color="transparent")
+        header_row.pack(fill="x", padx=5, pady=5)
+        for col, w in [("#", 60), ("Season", 100), ("Start", 200), ("End", 200), ("Status", 100)]:
+            ctk.CTkLabel(header_row, text=col, font=("", 11, "bold"), width=w).pack(side="left")
+
+        scroll = ctk.CTkScrollableFrame(list_frame)
+        scroll.pack(fill="both", expand=True)
+
+        for i, s in enumerate(data, 1):
+            row = ctk.CTkFrame(scroll, fg_color="transparent")
+            row.pack(fill="x", padx=5, pady=2)
+            st = s.get("status", "?")
+            sc = "#2ECC71" if st == "ACTIVE" else "#7F8C8D"
+            ctk.CTkLabel(row, text=str(i), font=("Consolas", 11), width=60).pack(side="left")
+            ctk.CTkLabel(row, text=f"Season {s.get('season_number')}", font=("", 11), width=100).pack(side="left")
+            ctk.CTkLabel(row, text=s.get("start_date", "N/A")[:19], font=("", 11), width=200).pack(side="left")
+            ctk.CTkLabel(row, text=s.get("end_date", "N/A")[:19], font=("", 11), width=200).pack(side="left")
+            ctk.CTkLabel(row, text=st, font=("", 11), text_color=sc, width=100).pack(side="left")
+
+    # ==========================================
+    # CONFESSIONS
+    # ==========================================
+    def build_confessions(self):
+        # Controls
+        ctrl = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
+        ctrl.pack(fill="x", padx=5, pady=5)
+
+        self.conf_limit = ctk.CTkEntry(ctrl, placeholder_text="Số lượng (mặc định 50)", width=120)
+        self.conf_limit.insert(0, "50")
+        self.conf_limit.pack(side="left", padx=5)
+        ctk.CTkButton(ctrl, text="Tải", width=70, command=self.load_confessions).pack(side="left", padx=5)
+
+        self.conf_count = ctk.CTkLabel(ctrl, text="", font=("", 12), text_color="gray")
+        self.conf_count.pack(side="right", padx=10)
+
+        # List
+        self.conf_list = ctk.CTkScrollableFrame(self.tab_frame)
+        self.conf_list.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self.load_confessions()
+
+    def load_confessions(self):
+        for w in self.conf_list.winfo_children():
+            w.destroy()
+
+        limit = self.conf_limit.get().strip() or "50"
+        data = self.api(f"/api/confessions?limit={limit}")
+
+        if "error" in data:
+            ctk.CTkLabel(self.conf_list, text=f"❌ {data['error']}").pack(pady=20)
+            return
+        if not data:
+            ctk.CTkLabel(self.conf_list, text="Chưa có confession nào.", font=("", 13)).pack(pady=20)
+            self.conf_count.configure(text="0")
+            return
+
+        self.conf_count.configure(text=f"{len(data)} confessions")
+
+        for c in data:
+            cid = c.get("id")
+            uid = c.get("user_id")
+            content = c.get("content", "")
+            created = c.get("created_at", "N/A")[:16]
+            discord = c.get("discord", {})
+            username = discord.get("username") if discord else f"User {uid}"
+
+            card = ctk.CTkFrame(self.conf_list, corner_radius=6)
+            card.pack(fill="x", padx=5, pady=3)
+
+            header = ctk.CTkFrame(card, fg_color="transparent")
+            header.pack(fill="x", padx=10, pady=(8, 2))
+            ctk.CTkLabel(header, text=f"#{cid} • {username} ({uid})", font=("", 12, "bold")).pack(side="left")
+            ctk.CTkLabel(header, text=created, font=("", 10), text_color="gray").pack(side="right")
+
+            preview = content[:200] + ("..." if len(content) > 200 else "")
+            ctk.CTkLabel(card, text=preview, font=("", 11), wraplength=700, justify="left",
+                         fg_color="#1E1E1E", corner_radius=4).pack(fill="x", padx=10, pady=5)
+
+            btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+            btn_frame.pack(fill="x", padx=10, pady=(0, 8))
+            ctk.CTkButton(btn_frame, text="🗑️ Xóa", width=70, fg_color="#C0392B", font=("", 10),
+                          command=lambda cid=cid: self.delete_confession(cid)).pack(side="right")
+
+    def delete_confession(self, cid):
+        if messagebox.askyesno("⚠️ Xác nhận", f"Xóa confession #{cid}?"):
+            result = self.api(f"/api/confessions/{cid}", method="DELETE")
+            if result.get("ok"):
+                self.load_confessions()
+                messagebox.showinfo("✅", f"Đã xóa confession #{cid}")
+
+    # ==========================================
+    # BACKUP & RESTORE
+    # ==========================================
+    def build_backup(self):
+        # Actions
+        action_frame = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
+        action_frame.pack(fill="x", padx=5, pady=10)
+
+        ctk.CTkButton(action_frame, text="💾 Tạo Backup mới", font=("", 13), height=40,
+                      command=self.create_backup).pack(side="left", padx=5)
+        ctk.CTkLabel(action_frame, text=self.get_backup_status(), font=("", 11), text_color="gray").pack(side="left", padx=20)
+
+        # List backups
+        self.backup_list = ctk.CTkScrollableFrame(self.tab_frame)
+        self.backup_list.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self.refresh_backups()
+
+    def get_backup_status(self):
+        result = self.api("/api/backups")
+        if "error" in result:
+            return "⚠️ Lỗi kết nối"
+        return f"📁 {len(result)} bản backup"
+
+    def refresh_backups(self):
+        for w in self.backup_list.winfo_children():
+            w.destroy()
+
+        data = self.api("/api/backups")
+        if "error" in data:
+            ctk.CTkLabel(self.backup_list, text=f"❌ {data['error']}").pack(pady=20)
+            return
+        if not data:
+            ctk.CTkLabel(self.backup_list, text="Chưa có bản backup nào.", font=("", 13)).pack(pady=20)
+            return
+
+        for b in data:
+            fname = b["filename"]
+            size = b["size_kb"]
+            created = b.get("created", "")
+
+            card = ctk.CTkFrame(self.backup_list, corner_radius=6)
+            card.pack(fill="x", padx=5, pady=3)
+
+            ctk.CTkLabel(card, text=f"📄 {fname}", font=("", 12, "bold")).pack(side="left", padx=10)
+            ctk.CTkLabel(card, text=f"{size} KB", font=("", 11), text_color="gray", width=80).pack(side="left")
+
+            btn_f = ctk.CTkFrame(card, fg_color="transparent")
+            btn_f.pack(side="right", padx=5)
+
+            ctk.CTkButton(btn_f, text="🔄 Restore", width=80, font=("", 10),
+                          command=lambda f=fname: self.restore_backup(f)).pack(side="left", padx=2)
+            ctk.CTkButton(btn_f, text="🗑️ Xóa", width=60, font=("", 10), fg_color="#C0392B",
+                          command=lambda f=fname: self.delete_backup(f)).pack(side="left", padx=2)
+
+    def create_backup(self):
+        result = self.api("/api/backup", method="POST")
+        if result.get("ok"):
+            self.refresh_backups()
+            messagebox.showinfo("✅", f"Backup thành công: {result['filename']}")
+        else:
+            messagebox.showerror("Lỗi", str(result))
+
+    def restore_backup(self, filename):
+        if messagebox.askyesno("⚠️ Xác nhận Restore",
+                               f"Khôi phục database từ:\n{filename}\n\n"
+                               "Bot sẽ cần được reload config sau khi restore!\n\nTiếp tục?"):
+            result = self.api(f"/api/restore/{filename}", method="POST")
+            if result.get("ok"):
+                messagebox.showinfo("✅", f"Đã restore từ {filename}\nVui lòng reload config!")
+            else:
+                messagebox.showerror("Lỗi", str(result))
+
+    def delete_backup(self, filename):
+        if messagebox.askyesno("⚠️ Xác nhận", f"Xóa backup {filename}?"):
+            result = self.api(f"/api/backups/{filename}", method="DELETE")
+            if result.get("ok"):
+                self.refresh_backups()
+                messagebox.showinfo("✅", "Đã xóa backup")
+
+    # ==========================================
+    # MAINTENANCE (Reset All window)
+    # ==========================================
+    def open_maintenance(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("⚠️ Maintenance - Reset Dữ Liệu")
+        dialog.geometry("500x400")
+        dialog.grab_set()
+        dialog.after(200, lambda: dialog.lift())
+
+        ctk.CTkLabel(dialog, text="⚠️ CẢNH BÁO: CÁC HÀNH ĐỘNG NÀY KHÔNG THỂ HOÀN TÁC",
+                     font=("", 14, "bold"), text_color="#E74C3C").pack(pady=(20, 10))
+
+        # Backup first
+        backup_frame = ctk.CTkFrame(dialog)
+        backup_frame.pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(backup_frame, text="Bước 1: Tạo backup trước khi reset", font=("", 12)).pack(anchor="w", pady=5)
+        ctk.CTkButton(backup_frame, text="💾 Tạo Backup Ngay", command=lambda: self.backup_before_reset(dialog)).pack()
+
+        ctk.CTkLabel(dialog, text="─── hoặc ───", font=("", 12), text_color="gray").pack(pady=5)
+
+        # Reset buttons
+        btn_f = ctk.CTkFrame(dialog)
+        btn_f.pack(fill="x", padx=20, pady=10)
+
+        ctk.CTkButton(btn_f, text="🗑️ Reset Players (giữ seasons)", fg_color="#E67E22", font=("", 12), height=40,
+                      command=lambda: self.confirm_reset(dialog, "players_only")).pack(fill="x", pady=5)
+        ctk.CTkButton(btn_f, text="⚠️ Reset ALL (xóa hết)", fg_color="#C0392B", font=("", 12), height=40,
+                      command=lambda: self.confirm_reset(dialog, "all")).pack(fill="x", pady=5)
+
+        ctk.CTkLabel(dialog, text="Sau khi reset, bot cần được reload config (/admin reload trước đây)",
+                     font=("", 10), text_color="gray", wraplength=400).pack(pady=10)
+
+    def backup_before_reset(self, dialog):
+        result = self.api("/api/backup", method="POST")
+        if result.get("ok"):
+            messagebox.showinfo("✅", f"Đã tạo backup: {result['filename']}")
+        else:
+            messagebox.showerror("Lỗi", str(result))
+
+    def confirm_reset(self, dialog, mode):
+        if mode == "players_only":
+            msg = "Xóa toàn bộ dữ liệu người chơi RNG?\n(players, collections, history, missions)\nGiữ lại seasons."
+            endpoint = "/api/reset_player_all"
+        else:
+            msg = "⚠️ XÓA TẤT CẢ?\n(players, collections, history, missions, seasons)\nKHÔNG THỂ HOÀN TÁC!"
+            endpoint = "/api/reset_all"
+
+        if messagebox.askyesno("⚠️ Xác nhận cuối cùng", msg + "\n\nChắc chắn?", icon="warning"):
+            result = self.api(endpoint, method="POST")
+            if result.get("ok"):
+                dialog.destroy()
+                messagebox.showinfo("✅", result.get("message", "Đã reset thành công!"))
+            else:
+                messagebox.showerror("Lỗi", str(result))
+
+    # ==========================================
     # LOGS
     # ==========================================
     def build_logs(self):
         btn_row = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
         btn_row.pack(fill="x", padx=5, pady=5)
         ctk.CTkButton(btn_row, text="🗑️ Clear Logs", fg_color="#C0392B", width=120, command=self.clear_logs).pack(side="left", padx=5)
+        ctk.CTkButton(btn_row, text="🔄 Refresh", width=100, command=self.refresh_logs).pack(side="left", padx=5)
 
         self.log_text = ctk.CTkTextbox(self.tab_frame, font=("Consolas", 11))
         self.log_text.pack(fill="both", expand=True, padx=5, pady=5)
@@ -407,6 +766,7 @@ class AdminApp(ctk.CTk):
         btn_row = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
         btn_row.pack(fill="x", padx=5, pady=5)
         ctk.CTkButton(btn_row, text="💾 Lưu Config lên VPS", command=self.save_config).pack(side="right", padx=5)
+        ctk.CTkButton(btn_row, text="🔄 Reload từ VPS", command=self.load_config, fg_color="gray").pack(side="right", padx=5)
 
         self.config_text = ctk.CTkTextbox(self.tab_frame, font=("Consolas", 12))
         self.config_text.pack(fill="both", expand=True, padx=5, pady=5)

@@ -161,31 +161,6 @@ class SelfRolesCog(commands.Cog):
         self.bot = bot
         self.bot.add_view(SelfRolesPersistentView())
 
-    @app_commands.command(name="setup_roles", description="Khởi tạo bảng nhận danh hiệu/role tự động cho server (Chỉ Admin tối cao)")
-    async def setup_roles(self, interaction: discord.Interaction):
-        if interaction.user.id != ADMIN_ID:
-            return await interaction.response.send_message("❌ Cậu không có quyền dùng lệnh này!", ephemeral=True)
-            
-        embed = discord.Embed(
-            title="⚜️ TRUNG TÂM CẤP PHÁT DANH HIỆU ROYAL CITY ⚜️",
-            color=discord.Color.from_rgb(255, 192, 203) # Màu hồng lãng mạn giống bảng xác minh
-        )
-        embed.description = (
-            f"Chào mừng cư dân đã thông quan thành công! 🎉\n"
-            f"Để mọi người dễ dàng tìm cạ cày game và ghép đôi trò chuyện, "
-            f"cậu hãy tự chọn các vai trò định danh cho mình nhé!\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎮 **Menu 1:** Chọn các tựa game cậu đang cày cuốc.\n"
-            f"⚧️ **Menu 2:** Chọn danh xưng/giới tính của cậu.\n"
-            f"💘 **Menu 3:** Cập nhật tình trạng mối quan hệ thực tế.\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📝 *Lưu ý: Chọn lần đầu để nhận vai trò, chọn lại lần nữa để hủy bỏ vai trò đó.*"
-        )
-        embed.set_image(url="https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000")
-        embed.set_footer(text="Hệ thống tự động hóa cư dân Royal City 🌃")
-        
-        await interaction.response.send_message("✅ Đã khởi tạo bảng phân tách vai trò thành công!", ephemeral=True)
-        await interaction.channel.send(embed=embed, view=SelfRolesPersistentView())
 
 async def setup(bot):
     await bot.add_cog(SelfRolesCog(bot))

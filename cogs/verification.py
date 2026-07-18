@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from datetime import datetime
 import logging
-import random
 
 logger = logging.getLogger("rng_bot")
 
@@ -28,12 +27,8 @@ GAME_OPTIONS = [
     {"label": "Game khác", "value": "other", "role_id": 1503825065970499698},
 ]
 
-WELCOME_GIFS = [
-    "https://i.imgur.com/K9mQ6nN.gif",
-    "https://i.imgur.com/W5VqG0d.gif",
-    "https://i.imgur.com/PnlBScJ.gif",
-    "https://i.imgur.com/n2uRq0D.gif",
-]
+
+
 
 
 
@@ -168,7 +163,6 @@ class VerificationStepView(discord.ui.View):
                     ),
                     color=discord.Color.from_rgb(255, 105, 180)
                 )
-                announce_embed.set_image(url=random.choice(WELCOME_GIFS))
                 await announce_channel.send(embed=announce_embed)
         except Exception as e:
             logger.error(f"Lỗi gửi thông báo xác minh: {e}")

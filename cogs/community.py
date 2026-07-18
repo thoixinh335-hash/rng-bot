@@ -120,7 +120,13 @@ class NhangReplyModal(discord.ui.Modal, title="💬 Trả lời tin nhắn"):
 
         if sender:
             try:
-                await sender.send(embed=embed)
+                # Gửi kèm nút reply để người đó reply lại tiếp
+                reply_view = NhangReplyView(
+                    sender_id=interaction.user.id,
+                    an_danh=self.an_danh,
+                    original_message=self.reply_text.value
+                )
+                await sender.send(embed=embed, view=reply_view)
                 await interaction.response.send_message(
                     "✅ Tin nhắn của bạn đã được gửi đến người đó!",
                     ephemeral=True

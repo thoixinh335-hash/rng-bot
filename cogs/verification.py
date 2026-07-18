@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from datetime import datetime
 import logging
-import aiohttp
 import random
 
 logger = logging.getLogger("rng_bot")
@@ -29,7 +28,6 @@ GAME_OPTIONS = [
     {"label": "Game khác", "value": "other", "role_id": 1503825065970499698},
 ]
 
-CHILL_GIF_API = "https://api.giphy.com/v1/gifs/random"
 FALLBACK_GIFS = [
     "https://media.tenor.com/lf7Rd-1Y1R0AAAAi/peach-and-goma-peach-goma.gif",
     "https://media.tenor.com/GfSX7JdEJGQAAAAi/peach-goma-peach-and-goma.gif",
@@ -39,24 +37,12 @@ FALLBACK_GIFS = [
     "https://media.tenor.com/4Beyond2TdfkAAAAi/peach-goma-peach-and-goma.gif",
     "https://media.tenor.com/yRVcZ4BpIhAAAAAi/peach-goma-peach-and-goma.gif",
     "https://media.tenor.com/UgLn4FS2r6QAAAAi/peach-goma-love.gif",
+    "https://media.tenor.com/fTgF9JdjS-sAAAAi/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/L3flSzBhvw0AAAAi/peach-goma-peach-and-goma.gif",
 ]
 
 
 async def get_random_chill_gif() -> str:
-    """Lấy gif chill ngẫu nhiên từ danh sách fallback GIF"""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.giphy.com/v1/gifs/random?api_key=0&tag=cute&rating=g",
-                timeout=5
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    url = data.get("data", {}).get("images", {}).get("original", {}).get("url")
-                    if url:
-                        return url
-    except:
-        pass
     return random.choice(FALLBACK_GIFS)
 
 

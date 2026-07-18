@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from datetime import datetime
 import logging
+import random
 
 logger = logging.getLogger("rng_bot")
 
@@ -25,6 +26,14 @@ GAME_OPTIONS = [
     {"label": "Free Fire", "value": "freefire", "role_id": 1503825059460939877},
     {"label": "CS:GO / CS2", "value": "csgo", "role_id": 1503825062921240667},
     {"label": "Game khác", "value": "other", "role_id": 1503825065970499698},
+]
+
+
+CHILL_IMAGES = [
+    "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=400&fit=crop",
+    "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?w=600&h=400&fit=crop",
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=400&fit=crop",
+    "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&h=400&fit=crop",
 ]
 
 
@@ -163,6 +172,8 @@ class VerificationStepView(discord.ui.View):
                     ),
                     color=discord.Color.from_rgb(255, 105, 180)
                 )
+                import random
+                announce_embed.set_image(url=random.choice(CHILL_IMAGES))
                 await announce_channel.send(embed=announce_embed)
         except Exception as e:
             logger.error(f"Lỗi gửi thông báo xác minh: {e}")

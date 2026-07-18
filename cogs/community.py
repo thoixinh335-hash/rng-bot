@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger("rng_bot")
 CONFESSION_CHANNEL_ID = 1503825245671395368
+CONFESSION_CHANNEL_ID_OLD = 1523960669324574750
 
 # ==========================================
 # MODAL REPLY CHO CONFESSION (kênh chung)
@@ -190,6 +191,10 @@ class ConfessionModal(discord.ui.Modal, title="Gửi Confession Ẩn Danh"):
                 original_content=self.content.value
             ) if confession_id else None
             await channel.send(embed=embed, view=view)
+            # Gửi thêm vào kênh cũ
+            channel_old = interaction.guild.get_channel(CONFESSION_CHANNEL_ID_OLD)
+            if channel_old and channel_old != channel:
+                await channel_old.send(embed=embed)
             await interaction.response.send_message("✅ Gửi thành công! Tâm sự của cậu đã được ẩn danh trên kênh.", ephemeral=True)
         else:
             await interaction.response.send_message("⚠️ Lỗi: Không tìm thấy kênh gửi Confession.", ephemeral=True)

@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 from datetime import datetime
 import logging
+import aiohttp
+import random
 
 logger = logging.getLogger("rng_bot")
 
@@ -24,7 +26,38 @@ GAME_OPTIONS = [
     {"label": "TFT", "value": "tft", "role_id": 1503825055832870963},
     {"label": "Free Fire", "value": "freefire", "role_id": 1503825059460939877},
     {"label": "CS:GO / CS2", "value": "csgo", "role_id": 1503825062921240667},
+    {"label": "Game khác", "value": "other", "role_id": 1503825065970499698},
 ]
+
+CHILL_GIF_API = "https://api.giphy.com/v1/gifs/random"
+FALLBACK_GIFS = [
+    "https://media.tenor.com/lf7Rd-1Y1R0AAAAi/peach-and-goma-peach-goma.gif",
+    "https://media.tenor.com/GfSX7JdEJGQAAAAi/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/FzqKvxsIcnsAAAAi/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/vpV5gIqyXqIAAAAi/peach-cat-hug.gif",
+    "https://media.tenor.com/eAL7RnwQb9AAAAAi/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/4Beyond2TdfkAAAAi/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/yRVcZ4BpIhAAAAAi/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/UgLn4FS2r6QAAAAi/peach-goma-love.gif",
+]
+
+
+async def get_random_chill_gif() -> str:
+    """Lấy gif chill ngẫu nhiên từ danh sách fallback GIF"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.giphy.com/v1/gifs/random?api_key=0&tag=cute&rating=g",
+                timeout=5
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    url = data.get("data", {}).get("images", {}).get("original", {}).get("url")
+                    if url:
+                        return url
+    except:
+        pass
+    return random.choice(FALLBACK_GIFS)
 
 
 
@@ -110,7 +143,9 @@ class VerificationStepView(discord.ui.View):
             async with await self.bot.db_manager.connect() as conn:
                 async with conn.execute("SELECT id FROM royal_profiles WHERE user_id = ?", (self.member.id,)) as cursor:
                     exists = await cursor.fetchone()
-                if not exists:
+                if exists:
+                    profile_id = exists[0]
+                else:
                     now = datetime.utcnow().isoformat()
                     cursor = await conn.execute(
                         "INSERT INTO royal_profiles (user_id, gender, updated_at) VALUES (?, ?, ?)",
@@ -139,6 +174,27 @@ class VerificationStepView(discord.ui.View):
         )
         success_embed.set_footer(text="Hệ thống xác minh tự động Royal City 🏙️")
         await interaction.edit_original_response(content=None, embed=success_embed, view=None)
+
+        # Gửi thông báo ra main chat chúc mừng kèm GIF chill
+        try:
+            gif_url = await get_random_chill_gif()
+            announce_embed = discord.Embed(
+                title="🎉 CHÀO MỪNG CƯ DÂN MỚI! 🎉",
+                description=(
+                    f"Xin chúc mừng **{self.member.mention}** đã hoàn thành xác minh "
+                    f"và chính thức gia nhập **Royal City**! 🏰\n\n"
+                    f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo thành công!\n"
+                    f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n"
+                    f"🎮 **Game yêu thích:** `{game_text}`\n\n"
+                    f"💝 Chào mừng đến với đại gia đình Royal City! Hãy tận hưởng những khoảnh khắc tuyệt vời nhé!"
+                ),
+                color=discord.Color.from_rgb(255, 105, 180)
+            )
+            announce_embed.set_image(url=gif_url)
+            announce_embed.set_footer(text="🏰 Royal City chào đón bạn!")
+            await interaction.channel.send(embed=announce_embed)
+        except Exception as e:
+            logger.error(f"Lỗi gửi thông báo xác minh: {e}")
 
     def _make_embed(self):
         if self.step == 1:

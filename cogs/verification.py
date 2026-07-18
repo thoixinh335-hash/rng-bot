@@ -232,11 +232,29 @@ class VerificationLandingView(discord.ui.View):
         )
 
 class VerificationCog(commands.Cog):
-    """Cog quản lý xác minh thành viên — chỉ đăng ký persistent view, không có lệnh admin"""
+    """Cog quản lý xác minh thành viên"""
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # Đăng ký persistent view cho landing page (timeout=None để sống vĩnh viễn)
         self.bot.add_view(VerificationLandingView())
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        """Khi member mới vào: tag nhẹ ở kênh chờ xác minh rồi xóa"""
+        if member.bot:
+            return
+        channel = self.bot.get_channel(1524357862418157568)
+        if not channel:
+            return
+
+        try:
+            msg = await channel.send(
+                f"👋 Chào mừng {member.mention} đến với **Royal City**! "
+                "Hãy bấm nút **🟢 Bắt đầu xác minh** ở phía trên để bắt đầu nhé! 🏰",
+                delete_after=10
+            )
+        except Exception as e:
+            logger.error(f"Lỗi gửi welcome join: {e}")
 
 
 async def setup(bot):

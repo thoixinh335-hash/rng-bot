@@ -17,21 +17,15 @@ GENDER_OPTIONS = [
 
 # Game + Role ID tương ứng — không dùng emoji trong Select để tránh lỗi Invalid emoji
 GAME_OPTIONS = [
-    {"label": "Không chơi game", "value": "none", "role_id": 1503825065970499698, "no_game": True},
-    {"label": "🗡️ Liên Quân Mobile", "value": "lienquan", "role_id": 1503825048039981208},
-    {"label": "🎯 Valorant", "value": "valorant", "role_id": 1503825041262116966},
-    {"label": "🧊 Roblox", "value": "roblox", "role_id": 1503825045045252136},
-    {"label": "⛏️ Minecraft", "value": "minecraft", "role_id": 1503825052108587142},
-    {"label": "♟️ TFT", "value": "tft", "role_id": 1503825055832870963},
-    {"label": "🔫 Free Fire", "value": "freefire", "role_id": 1503825059460939877},
-    {"label": "💥 CS:GO / CS2", "value": "csgo", "role_id": 1503825062921240667},
-    {"label": "🎮 Game khác...", "value": "other", "role_id": 1503825065970499698, "no_game": True},
+    {"label": "Liên Quân Mobile", "value": "lienquan", "role_id": 1503825048039981208},
+    {"label": "Valorant", "value": "valorant", "role_id": 1503825041262116966},
+    {"label": "Roblox", "value": "roblox", "role_id": 1503825045045252136},
+    {"label": "Minecraft", "value": "minecraft", "role_id": 1503825052108587142},
+    {"label": "TFT", "value": "tft", "role_id": 1503825055832870963},
+    {"label": "Free Fire", "value": "freefire", "role_id": 1503825059460939877},
+    {"label": "CS:GO / CS2", "value": "csgo", "role_id": 1503825062921240667},
 ]
 
-
-def get_emoji(game: dict):
-    """Không dùng custom emoji — trả về None để SelectOption dùng text label"""
-    return None
 
 
 class VerificationStepView(discord.ui.View):
@@ -58,12 +52,7 @@ class VerificationStepView(discord.ui.View):
 
     def _build_step2(self):
         self.clear_items()
-        # Lọc bỏ các option "no_game" (Không chơi game, Game khác) vì multi-select
-        game_options = [g for g in GAME_OPTIONS if not g.get("no_game")]
-        options = []
-        for g in game_options:
-            opt = discord.SelectOption(label=g["label"], value=g["value"], emoji=get_emoji(g))
-            options.append(opt)
+        options = [discord.SelectOption(label=g["label"], value=g["value"]) for g in GAME_OPTIONS]
         select_menu = discord.ui.Select(
             placeholder="🎮 Bước 2/2: Chọn game bạn chơi (có thể chọn nhiều)!",
             options=options,

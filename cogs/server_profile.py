@@ -321,8 +321,7 @@ class ServerProfileCog(commands.Cog):
                             pass
                         break
 
-            # 2. Xóa social data (giữ nguyên data RNG: players, collections, history)
-            await conn.execute("DELETE FROM royal_profiles WHERE user_id = ?", (member.id,))
+            # 2. Xóa social data (giữ nguyên data RNG + hồ sơ cư dân)
             await conn.execute("DELETE FROM royal_afk WHERE user_id = ?", (member.id,))
             await conn.execute("DELETE FROM royal_reminders WHERE user_id = ?", (member.id,))
             await conn.execute("DELETE FROM royal_bans WHERE user_id = ?", (member.id,))

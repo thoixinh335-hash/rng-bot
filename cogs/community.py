@@ -168,8 +168,8 @@ class ConfessionModal(discord.ui.Modal, title="Gửi Confession Ẩn Danh"):
         try:
             async with await self.cog.bot.db_manager.connect() as conn:
                 cursor = await conn.execute(
-                    "INSERT INTO confessions (content, created_at) VALUES (?, ?)",
-                    (self.content.value, datetime.utcnow().isoformat())
+                    "INSERT INTO confessions (user_id, content, created_at) VALUES (?, ?, ?)",
+                    (interaction.user.id, self.content.value, datetime.utcnow().isoformat())
                 )
                 await conn.commit()
                 confession_id = cursor.lastrowid

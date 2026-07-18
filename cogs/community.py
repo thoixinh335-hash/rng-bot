@@ -248,9 +248,24 @@ class CommunityCog(commands.Cog):
         # Lưu vào database
         try:
             async with await self.bot.db_manager.connect() as conn:
+                # Lưu riêng vào bảng nhangui
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS royal_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        sender_id INTEGER NOT NULL,
+                        receiver_id INTEGER NOT NULL,
+                        content TEXT NOT NULL,
+                        an_danh INTEGER DEFAULT 1,
+                        created_at TEXT NOT NULL
+                    )
+                """)
+                try:
+                    await conn.execute("ALTER TABLE royal_messages ADD COLUMN an_danh INTEGER DEFAULT 1")
+                except:
+                    pass
                 await conn.execute(
-                    "INSERT INTO confessions (user_id, content, created_at) VALUES (?, ?, ?)",
-                    (interaction.user.id, f"[Nhắn gửi] {message} (→ {user.id})", datetime.utcnow().isoformat())
+                    "INSERT INTO royal_messages (sender_id, receiver_id, content, an_danh, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (interaction.user.id, user.id, message, 1 if an_danh else 0, datetime.utcnow().isoformat())
                 )
                 await conn.commit()
         except Exception as e:

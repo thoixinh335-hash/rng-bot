@@ -294,6 +294,28 @@ def delete_confession(cid):
     db.commit(); db.close()
     return jsonify({"ok": True})
 
+
+# ==========================================
+# NHAN_GUI MESSAGES
+# ==========================================
+@app.route("/api/messages")
+def list_messages():
+    db = get_db(); c = db.cursor()
+    limit = min(int(request.args.get("limit", 50)), 200)
+    try:
+        c.execute("SELECT id, sender_id, receiver_id, content, an_danh, created_at FROM royal_messages ORDER BY id DESC LIMIT ?", (limit,))
+        rows = [dict(r) for r in c.fetchall()]
+    except:
+        rows = []
+    db.close()
+    for row in rows:
+        for uid_field in ["sender_id", "receiver_id"]:
+            uid = row.get(uid_field)
+            if uid:
+                row[f"{uid_field}_discord"] = get_discord_user(uid)
+    return jsonify(rows)
+
+
 # ==========================================
 # BACKUP / RESTORE
 # ==========================================

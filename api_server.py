@@ -14,17 +14,27 @@ LOGS_DIR = os.path.join(BASE_DIR, "logs")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 ROLES_PATH = os.path.join(BASE_DIR, "data", "roles.json")
 MEMBER_IDS_PATH = os.path.join(BASE_DIR, "assets", "member_ids.txt")
+MEMBER_NAMES_PATH = os.path.join(BASE_DIR, "assets", "member_names.json")
 
 
 def get_guild_member_ids() -> set:
-    """Đọc danh sách member ID từ file bot ghi"""
     try:
         if os.path.exists(MEMBER_IDS_PATH):
             with open(MEMBER_IDS_PATH) as f:
                 return {int(line.strip()) for line in f if line.strip().isdigit()}
-    except:
-        pass
+    except: pass
     return set()
+
+
+def get_member_name_from_file(user_id) -> str | None:
+    """Lấy tên từ file member_names.json do bot sync"""
+    try:
+        if os.path.exists(MEMBER_NAMES_PATH):
+            with open(MEMBER_NAMES_PATH, encoding="utf-8") as f:
+                names = json.load(f)
+            return names.get(str(user_id))
+    except: pass
+    return None
 
 # === Discord API (khong can token, public user data) ===
 DISCORD_API = "https://discord.com/api/v10"
@@ -56,7 +66,13 @@ def get_discord_user(user_id):
     except:
         pass
 
-    # Fallback: lấy username từ bảng players (do bot lưu)
+    # Fallback 1: lấy tên từ file member_names.json
+    name = get_member_name_from_file(user_id)
+    if name:
+        _discord_cache[user_id] = {"username": name, "avatar_url": None, "_time": now}
+        return {"username": name, "avatar_url": None}
+
+    # Fallback 2: lấy username từ bảng players (do bot lưu)
     try:
         db = get_db()
         c = db.cursor()

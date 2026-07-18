@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import logging
 from dotenv import load_dotenv
 import discord
@@ -71,18 +72,23 @@ class RNGBot(commands.Bot):
 
     @tasks.loop(minutes=5)
     async def sync_member_ids(self):
-        """Ghi danh sách user_id đang trong guild ra file để API đọc"""
+        """Ghi danh sách user_id + tên đang trong guild ra file để API đọc"""
         try:
             filepath = os.path.join(BASE_DIR, "assets", "member_ids.txt")
+            jsonpath = os.path.join(BASE_DIR, "assets", "member_names.json")
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             member_ids = set()
+            name_map = {}
             for guild in self.guilds:
                 for member in guild.members:
                     if not member.bot:
                         member_ids.add(member.id)
+                        name_map[str(member.id)] = member.name
             with open(filepath, "w") as f:
                 for uid in sorted(member_ids):
                     f.write(f"{uid}\n")
+            with open(jsonpath, "w", encoding="utf-8") as f:
+                json.dump(name_map, f, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"Lỗi sync member IDs: {e}")
 

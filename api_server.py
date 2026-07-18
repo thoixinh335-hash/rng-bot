@@ -258,13 +258,12 @@ def list_seasons():
 def list_confessions():
     db = get_db(); c = db.cursor()
     limit = min(int(request.args.get("limit", 50)), 200)
-    c.execute("SELECT id, user_id, content, created_at FROM confessions ORDER BY id DESC LIMIT ?", (limit,))
+    c.execute("SELECT id, content, created_at FROM confessions ORDER BY id DESC LIMIT ?", (limit,))
     rows = [dict(r) for r in c.fetchall()]
     db.close()
     for row in rows:
-        uid = row.get("user_id")
-        if uid:
-            row["discord"] = get_discord_user(uid)
+        row["user_id"] = None
+        row["discord"] = None
     return jsonify(rows)
 
 @app.route("/api/confessions/<int:cid>", methods=["DELETE"])

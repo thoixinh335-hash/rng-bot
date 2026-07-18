@@ -15,17 +15,17 @@ GENDER_OPTIONS = [
     {"label": "Khác 💜", "value": "khac", "gender": "Bí mật 🤫"},
 ]
 
-# Game + Role ID tương ứng (tự gán role game cho user)
+# Game + Role ID tương ứng - bỏ custom emoji trong label vì select menu không render được
 GAME_OPTIONS = [
-    {"label": "🚫 Không chơi game", "value": "none", "role_id": 1503825065970499698},
-    {"label": "<:lienquan:1524696458992029807> Liên Quân Mobile", "value": "lienquan", "role_id": 1503825048039981208},
-    {"label": "<:valorant:1524695522869379072> Valorant", "value": "valorant", "role_id": 1503825041262116966},
-    {"label": "<:roblox:1524695525968973825> Roblox", "value": "roblox", "role_id": 1503825045045252136},
-    {"label": "<:minecraft:1524695638833631242> Minecraft", "value": "minecraft", "role_id": 1503825052108587142},
-    {"label": "<:tft:1524695534076428429> TFT", "value": "tft", "role_id": 1503825055832870963},
-    {"label": "<:freefire:1524695536547008594> Free Fire", "value": "freefire", "role_id": 1503825059460939877},
-    {"label": "<:csgo:1524695542087815180> CS:GO / CS2", "value": "csgo", "role_id": 1503825062921240667},
-    {"label": "🎮 Game khác...", "value": "other", "role_id": 1503825065970499698},
+    {"label": "Không chơi game", "value": "none", "emoji": "🚫", "role_id": 1503825065970499698, "no_game": True},
+    {"label": "Liên Quân Mobile", "value": "lienquan", "emoji": "🎮", "role_id": 1503825048039981208},
+    {"label": "Valorant", "value": "valorant", "emoji": "🎯", "role_id": 1503825041262116966},
+    {"label": "Roblox", "value": "roblox", "emoji": "🎲", "role_id": 1503825045045252136},
+    {"label": "Minecraft", "value": "minecraft", "emoji": "⛏️", "role_id": 1503825052108587142},
+    {"label": "TFT", "value": "tft", "emoji": "♟️", "role_id": 1503825055832870963},
+    {"label": "Free Fire", "value": "freefire", "emoji": "🔫", "role_id": 1503825059460939877},
+    {"label": "CS:GO / CS2", "value": "csgo", "emoji": "🎯", "role_id": 1503825062921240667},
+    {"label": "Game khác...", "value": "other", "emoji": "🎮", "role_id": 1503825065970499698, "no_game": True},
 ]
 
 
@@ -53,11 +53,18 @@ class VerificationStepView(discord.ui.View):
 
     def _build_step2(self):
         self.clear_items()
-        options = [discord.SelectOption(label=g["label"], value=g["value"]) for g in GAME_OPTIONS]
+        # Lọc bỏ các option "no_game" (Không chơi game, Game khác) vì multi-select
+        game_options = [g for g in GAME_OPTIONS if not g.get("no_game")]
+        options = []
+        for g in game_options:
+            opt = discord.SelectOption(label=g["label"], value=g["value"], emoji=g.get("emoji"))
+            options.append(opt)
         select_menu = discord.ui.Select(
-            placeholder="🎮 Bước 2/2: Bạn hay chơi game gì nhất?",
+            placeholder="🎮 Bước 2/2: Chọn game bạn chơi (có thể chọn nhiều)!",
             options=options,
-            custom_id="verify_step2_game"
+            custom_id="verify_step2_game",
+            min_values=1,
+            max_values=len(options)  # Cho phép chọn nhiều
         )
         select_menu.callback = self.game_callback
         self.add_item(select_menu)
@@ -74,10 +81,9 @@ class VerificationStepView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def game_callback(self, interaction: discord.Interaction):
-        chosen_value = interaction.data['values'][0]
-        chosen_game = next((g for g in GAME_OPTIONS if g["value"] == chosen_value), None)
-        if not chosen_game:
-            return await interaction.response.edit_message(content="❌ Lỗi!", embed=None, view=None)
+        chosen_values = interaction.data['values']  # list (multi-select)
+        if not chosen_values:
+            return await interaction.response.edit_message(content="❌ Chưa chọn game nào!", embed=None, view=None)
 
         await interaction.response.edit_message(content="⏳ Đang xử lý xác minh...", embed=None, view=None)
 
@@ -91,16 +97,18 @@ class VerificationStepView(discord.ui.View):
         except discord.Forbidden:
             return await interaction.edit_original_response(content="❌ Bot thiếu quyền cấp Role!")
 
-        # Cấp Role Game nếu có
-        game_role_name = None
-        if chosen_game["role_id"]:
-            game_role = self.guild.get_role(chosen_game["role_id"])
-            if game_role:
-                try:
-                    await self.member.add_roles(game_role, reason=f"Chọn game: {chosen_game['label']}")
-                    game_role_name = game_role.name
-                except discord.Forbidden:
-                    pass
+        # Cấp Role Game cho từng game đã chọn
+        game_names = []
+        for val in chosen_values:
+            game = next((g for g in GAME_OPTIONS if g["value"] == val), None)
+            if game and game.get("role_id"):
+                game_role = self.guild.get_role(game["role_id"])
+                if game_role:
+                    try:
+                        await self.member.add_roles(game_role, reason=f"Xác minh: {game['label']}")
+                        game_names.append(f"{game.get('emoji', '🎮')} {game['label']}")
+                    except discord.Forbidden:
+                        pass
 
         # Tạo hồ sơ với giới tính đã chọn
         profile_id = None
@@ -120,15 +128,14 @@ class VerificationStepView(discord.ui.View):
         except Exception as e:
             logger.error(f"Lỗi tạo hồ sơ: {e}")
 
+        game_text = ", ".join(game_names) if game_names else "Không có"
         desc = (
             f"🏰 **Chào mừng đến với Royal City!**\n\n"
             f"👤 **Cư dân:** {self.member.mention}\n"
             f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n"
-            f"🎮 **Game:** `{chosen_game['label']}`\n"
+            f"🎮 **Game:** `{game_text}`\n"
             f"🛡️ **Role:** {verified_role.mention}\n"
         )
-        if game_role_name:
-            desc += f"🎯 **Role Game:** `{game_role_name}`\n"
         desc += (f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo tự động!" if profile_id else "⚠️ Có lỗi khi tạo hồ sơ, hãy báo Admin.")
 
         success_embed = discord.Embed(
@@ -145,7 +152,7 @@ class VerificationStepView(discord.ui.View):
         else:
             desc = (
                 f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n\n"
-                f"👉 **Bước 2/2:** Bạn hay chơi game gì nhất?"
+                f"👉 **Bước 2/2:** Chọn những game bạn chơi (có thể chọn nhiều)! 🎮"
             )
         embed = discord.Embed(
             title="🧚‍♀️ Xác Minh Danh Tính 🧚‍♀️",

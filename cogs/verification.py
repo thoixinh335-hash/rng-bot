@@ -130,9 +130,7 @@ class VerificationStepView(discord.ui.View):
         )
         if game_role_name:
             desc += f"🎯 **Role Game:** `{game_role_name}`\n"
-        desc += (
-            + (f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo tự động!" if profile_id else "⚠️ Có lỗi khi tạo hồ sơ, hãy báo Admin.")
-        )
+        desc += (f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo tự động!" if profile_id else "⚠️ Có lỗi khi tạo hồ sơ, hãy báo Admin.")
 
         success_embed = discord.Embed(
             title="✨ Xác Minh Thành Công! ✨",

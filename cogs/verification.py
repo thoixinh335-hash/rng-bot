@@ -175,24 +175,26 @@ class VerificationStepView(discord.ui.View):
         success_embed.set_footer(text="Hệ thống xác minh tự động Royal City 🏙️")
         await interaction.edit_original_response(content=None, embed=success_embed, view=None)
 
-        # Gửi thông báo ra main chat chúc mừng kèm GIF chill
+        # Gửi thông báo ra kênh chính chúc mừng kèm GIF chill
         try:
             gif_url = await get_random_chill_gif()
-            announce_embed = discord.Embed(
-                title="🎉 CHÀO MỪNG CƯ DÂN MỚI! 🎉",
-                description=(
-                    f"Xin chúc mừng **{self.member.mention}** đã hoàn thành xác minh "
-                    f"và chính thức gia nhập **Royal City**! 🏰\n\n"
-                    f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo thành công!\n"
-                    f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n"
-                    f"🎮 **Game yêu thích:** `{game_text}`\n\n"
-                    f"💝 Chào mừng đến với đại gia đình Royal City! Hãy tận hưởng những khoảnh khắc tuyệt vời nhé!"
-                ),
-                color=discord.Color.from_rgb(255, 105, 180)
-            )
-            announce_embed.set_image(url=gif_url)
-            announce_embed.set_footer(text="🏰 Royal City chào đón bạn!")
-            await interaction.channel.send(embed=announce_embed)
+            announce_channel = self.bot.get_channel(1503825245671395368)
+            if announce_channel:
+                announce_embed = discord.Embed(
+                    title="🎉 CHÀO MỪNG CƯ DÂN MỚI! 🎉",
+                    description=(
+                        f"Xin chúc mừng **{self.member.mention}** đã hoàn thành xác minh "
+                        f"và chính thức gia nhập **Royal City**! 🏰\n\n"
+                        f"📋 **Hồ sơ:** `#{profile_id:03d}` đã được tạo thành công!\n"
+                        f"⚧️ **Giới tính:** `{self.chosen_gender['gender']}`\n"
+                        f"🎮 **Game yêu thích:** `{game_text}`\n\n"
+                        f"💝 Chào mừng đến với đại gia đình Royal City! Hãy tận hưởng những khoảnh khắc tuyệt vời nhé!"
+                    ),
+                    color=discord.Color.from_rgb(255, 105, 180)
+                )
+                announce_embed.set_image(url=gif_url)
+                announce_embed.set_footer(text="🏰 Royal City chào đón bạn!")
+                await announce_channel.send(embed=announce_embed)
         except Exception as e:
             logger.error(f"Lỗi gửi thông báo xác minh: {e}")
 

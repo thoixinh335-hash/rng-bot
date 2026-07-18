@@ -96,10 +96,40 @@ def profiles():
 def update_profile(pid):
     data = request.json
     db = get_db()
-    db.execute("UPDATE royal_profiles SET gender=?, birthday=?, status=?, spouse_id=?, love_points=? WHERE id=?",
-              (data.get("gender"), data.get("birthday"), data.get("status"),
-               data.get("spouse_id"), data.get("love_points"), pid))
-    db.commit(); db.close()
+
+    # Lấy user_id của hồ sơ hiện tại
+    c = db.cursor()
+    c.execute("SELECT user_id FROM royal_profiles WHERE id=?", (pid,))
+    row = c.fetchone()
+    if not row:
+        db.close()
+        return jsonify({"error": "Không tìm thấy hồ sơ"}), 404
+
+    current_uid = row[0]
+    new_spouse_id = data.get("spouse_id")
+
+    # 1. Xóa spouse cũ (nếu có) - người cũ không còn là tri kỷ nữa
+    c.execute("SELECT spouse_id FROM royal_profiles WHERE id=?", (pid,))
+    old_row = c.fetchone()
+    if old_row and old_row[0] and old_row[0] != new_spouse_id:
+        db.execute("UPDATE royal_profiles SET spouse_id=NULL, marriage_date=NULL WHERE user_id=?", (old_row[0],))
+
+    # 2. Nếu có spouse mới, cập nhật cả 2 chiều
+    if new_spouse_id:
+        # Cập nhật hồ sơ hiện tại
+        db.execute("""UPDATE royal_profiles SET gender=?, birthday=?, status=?, spouse_id=?, love_points=?, marriage_date=COALESCE(marriage_date, datetime('now')) WHERE id=?""",
+                  (data.get("gender"), data.get("birthday"), data.get("status"),
+                   new_spouse_id, data.get("love_points"), pid))
+        # Cập nhật ngược lại cho spouse
+        db.execute("UPDATE royal_profiles SET spouse_id=?, marriage_date=COALESCE(marriage_date, datetime('now')) WHERE user_id=?", (current_uid, new_spouse_id))
+    else:
+        # Xóa spouse - chỉ update hồ sơ hiện tại
+        db.execute("UPDATE royal_profiles SET gender=?, birthday=?, status=?, spouse_id=NULL, love_points=? WHERE id=?",
+                  (data.get("gender"), data.get("birthday"), data.get("status"),
+                   data.get("love_points"), pid))
+
+    db.commit()
+    db.close()
     return jsonify({"ok": True})
 
 @app.route("/api/profiles/<int:pid>", methods=["DELETE"])

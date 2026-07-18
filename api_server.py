@@ -55,6 +55,20 @@ def get_discord_user(user_id):
             return {"username": username, "avatar_url": avatar_url}
     except:
         pass
+
+    # Fallback: lấy username từ bảng players (do bot lưu)
+    try:
+        db = get_db()
+        c = db.cursor()
+        c.execute("SELECT username FROM players WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+        db.close()
+        if row:
+            username = row[0]
+            _discord_cache[user_id] = {"username": username, "avatar_url": None, "_time": now}
+            return {"username": username, "avatar_url": None}
+    except:
+        pass
     return None
 
 def get_db():
@@ -131,6 +145,22 @@ def update_profile(pid):
     current_uid = row[0]
     new_spouse_id = data.get("spouse_id")
 
+    # Lấy dữ liệu hiện tại để không ghi đè bằng NULL
+    c.execute("SELECT gender, birthday, bio, status, bg_url, love_points FROM royal_profiles WHERE id=?", (pid,))
+    cur = c.fetchone()
+    fallback_gender = cur[0] if cur else "Bí mật 🤫"
+    fallback_birthday = cur[1] if cur else "Chưa cập nhật 📅"
+    fallback_bio = cur[2] if cur else "Chưa có tiểu sử cư dân."
+    fallback_status = cur[3] if cur else "Đang tận hưởng cuộc sống ✨"
+    fallback_bg_url = cur[4] if cur else None
+    fallback_love = cur[5] if cur else 0
+
+    new_gender = data.get("gender") or fallback_gender
+    new_birthday = data.get("birthday") or fallback_birthday
+    new_bio = data.get("bio") or fallback_bio
+    new_status = data.get("status") or fallback_status
+    new_love = data.get("love_points") if data.get("love_points") is not None else fallback_love
+
     # 1. Xóa spouse cũ (nếu có) - người cũ không còn là tri kỷ nữa
     c.execute("SELECT spouse_id FROM royal_profiles WHERE id=?", (pid,))
     old_row = c.fetchone()
@@ -140,13 +170,13 @@ def update_profile(pid):
     # 2. Nếu có spouse mới, cập nhật cả 2 chiều - Không update bg_url (giữ nguyên)
     if new_spouse_id:
         db.execute("""UPDATE royal_profiles SET gender=?, birthday=?, bio=?, status=?, spouse_id=?, love_points=?, marriage_date=COALESCE(marriage_date, datetime('now')) WHERE id=?""",
-                  (data.get("gender"), data.get("birthday"), data.get("bio"), data.get("status"),
-                   new_spouse_id, data.get("love_points"), pid))
+                  (new_gender, new_birthday, new_bio, new_status,
+                   new_spouse_id, new_love, pid))
         db.execute("UPDATE royal_profiles SET spouse_id=?, marriage_date=COALESCE(marriage_date, datetime('now')) WHERE user_id=?", (current_uid, new_spouse_id))
     else:
         db.execute("UPDATE royal_profiles SET gender=?, birthday=?, bio=?, status=?, spouse_id=NULL, love_points=? WHERE id=?",
-                  (data.get("gender"), data.get("birthday"), data.get("bio"), data.get("status"),
-                   data.get("love_points"), pid))
+                  (new_gender, new_birthday, new_bio, new_status,
+                   new_love, pid))
 
     db.commit()
     db.close()

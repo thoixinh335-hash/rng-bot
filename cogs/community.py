@@ -232,7 +232,7 @@ class CommunityCog(commands.Cog):
             description="Bấm vào nút bên dưới để gửi confession ẩn danh lên kênh chung nhé.",
             color=discord.Color.purple()
         )
-        await interaction.response.send_message(embed=embed, view=ConfessionView(self))
+        await interaction.response.send_message(embed=embed, view=ConfessionView(self), ephemeral=True)
 
     @app_commands.command(name="nhangui", description="Gửi lời nhắn ngọt ngào bí mật tới ai đó")
     @app_commands.describe(user="Người nhận", message="Nội dung thư", an_danh="True để ẩn danh, False để hiện tên")

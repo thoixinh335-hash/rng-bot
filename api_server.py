@@ -28,9 +28,17 @@ def get_guild_member_ids() -> set:
 
 # === Discord API (khong can token, public user data) ===
 DISCORD_API = "https://discord.com/api/v10"
+_discord_cache = {}  # user_id -> {username, avatar_url}
+_DISCORD_CACHE_TTL = 3600  # 1 tiếng
 
 def get_discord_user(user_id):
-    """Lay avatar + ten tu Discord bang API (khong can auth cho public data)"""
+    """Lay avatar + ten tu Discord bang API (co cache 1h)"""
+    now = datetime.now().timestamp()
+    # Check cache
+    cached = _discord_cache.get(user_id)
+    if cached and now - cached["_time"] < _DISCORD_CACHE_TTL:
+        return {k: v for k, v in cached.items() if k != "_time"}
+
     try:
         resp = requests.get(f"{DISCORD_API}/users/{user_id}", timeout=5)
         if resp.status_code == 200:
@@ -42,6 +50,8 @@ def get_discord_user(user_id):
                 avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.{ext}?size=64"
             else:
                 avatar_url = f"https://cdn.discordapp.com/embed/avatars/{(int(d.get('discriminator', '0')[0]) % 5) if d.get('discriminator') else 0}.png"
+            # Lưu cache
+            _discord_cache[user_id] = {"username": username, "avatar_url": avatar_url, "_time": now}
             return {"username": username, "avatar_url": avatar_url}
     except:
         pass

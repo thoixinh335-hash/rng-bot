@@ -155,6 +155,21 @@ class DatabaseManager:
             await db.execute("CREATE INDEX IF NOT EXISTS idx_daily_missions_date ON daily_missions(date);")
             await db.execute("CREATE INDEX IF NOT EXISTS idx_seasons_status ON seasons(status);")
             await db.execute("CREATE INDEX IF NOT EXISTS idx_players_highest_rank ON players(highest_rank);")
+
+            # Bảng tin nhắn /nhangui
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS royal_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sender_id INTEGER NOT NULL,
+                    receiver_id INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    an_danh INTEGER DEFAULT 1,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_receiver ON royal_messages(receiver_id);")
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_sender ON royal_messages(sender_id);")
+
             await db.commit()
 
     async def connect(self) -> _ConnectionContext:

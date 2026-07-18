@@ -29,18 +29,15 @@ GAME_OPTIONS = [
 ]
 
 FALLBACK_GIFS = [
-    "https://media.tenor.com/lf7Rd-1Y1R0AAAAi/peach-and-goma-peach-goma.gif",
-    "https://media.tenor.com/GfSX7JdEJGQAAAAi/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/FzqKvxsIcnsAAAAi/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/vpV5gIqyXqIAAAAi/peach-cat-hug.gif",
-    "https://media.tenor.com/eAL7RnwQb9AAAAAi/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/4Beyond2TdfkAAAAi/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/yRVcZ4BpIhAAAAAi/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/UgLn4FS2r6QAAAAi/peach-goma-love.gif",
-    "https://media.tenor.com/fTgF9JdjS-sAAAAi/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/L3flSzBhvw0AAAAi/peach-goma-peach-and-goma.gif",
+    "https://c.tenor.com/RgCGu7VXsm0AAAAd/peach-goma-hug.gif",
+    "https://c.tenor.com/vpV5gIqyXqIAAAAd/peach-cat-hug.gif",
+    "https://c.tenor.com/4UjE7hXx0TwAAAAd/peach-cat-hug.gif",
+    "https://c.tenor.com/1kQYQW9lG0cAAAAd/peach-goma.gif",
+    "https://c.tenor.com/KTZyYqBZvDgAAAAd/peach-goma.gif",
+    "https://c.tenor.com/CfArykSpBOoAAAAd/peach-goma.gif",
+    "https://c.tenor.com/lf7Rd-1Y1R0AAAAd/peach-and-goma.gif",
+    "https://c.tenor.com/FzqKvxsIcnsAAAAd/peach-goma-peach-and-goma.gif",
 ]
-
 
 async def get_random_chill_gif() -> str:
     return random.choice(FALLBACK_GIFS)

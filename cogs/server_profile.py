@@ -977,7 +977,7 @@ class ServerProfileCog(commands.Cog):
             if tai_anh_tu_may.content_type and "image" in tai_anh_tu_may.content_type: chosen_bg_url = tai_anh_tu_may.url
             else: return await interaction.followup.send("❌ Định dạng file không hợp lệ!", ephemeral=True)
         elif link_anh_ngoai is not None: chosen_bg_url = link_anh_ngoai
-        new_bio = tieu_su if tieu_su is not None else current_bio
+        new_bio = (tieu_su[:150] if len(tieu_su) > 150 else tieu_su) if tieu_su is not None else current_bio
         new_gender = gioi_tinh if gioi_tinh is not None else current_gender
         new_birthday = ngay_sinh if ngay_sinh is not None else current_birthday
         # Validate ngày sinh

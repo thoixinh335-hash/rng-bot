@@ -352,14 +352,26 @@ class AdminApp(ctk.CTk):
         field_defs = [
             ("⚧️ Giới tính", "gender", row.get("gender") or "Bí mật 🤫"),
             ("🎂 Ngày sinh", "birthday", row.get("birthday") or "Chưa cập nhật 📅"),
+            ("💬 Tiểu sử", "bio", row.get("bio") or "Chưa có tiểu sử cư dân."),
             ("💬 Status", "status", row.get("status") or "Đang tận hưởng cuộc sống ✨"),
             ("💍 Tri kỷ ID", "spouse_id", str(row["spouse_id"]) if row.get("spouse_id") else ""),
             ("💕 Điểm tri kỷ", "love_points", str(row.get("love_points") or 0)),
         ]
         for label, key, default in field_defs:
             ctk.CTkLabel(form, text=label, font=("", 12), anchor="w").pack(fill="x", pady=(8, 0))
-            e = ctk.CTkEntry(form, height=32)
-            e.insert(0, default)
+            if key == "bio":
+                e = ctk.CTkTextbox(form, height=80, wrap="word")
+                e.insert("1.0", default)
+                # Xóa tiểu sử nhanh
+                def clear_bio(e=e):
+                    e.delete("1.0", "end")
+                    e.insert("1.0", "Chưa có tiểu sử cư dân.")
+                clear_btn = ctk.CTkButton(form, text="🗑️ Xóa tiểu sử", width=100, font=("", 10), fg_color="#C0392B",
+                                        command=clear_bio)
+                clear_btn.pack(anchor="w", pady=2)
+            else:
+                e = ctk.CTkEntry(form, height=32)
+                e.insert(0, default)
             e.pack(fill="x", pady=2)
             fields[key] = e
 
@@ -368,6 +380,7 @@ class AdminApp(ctk.CTk):
             data = {
                 "gender": fields["gender"].get(),
                 "birthday": fields["birthday"].get(),
+                "bio": fields["bio"].get("1.0", "end-1c").strip()[:150],
                 "status": fields["status"].get(),
                 "spouse_id": int(sv) if sv else None,
                 "love_points": int(fields["love_points"].get()),

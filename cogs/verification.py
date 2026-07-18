@@ -29,11 +29,10 @@ GAME_OPTIONS = [
 ]
 
 WELCOME_GIFS = [
-    "https://media.tenor.com/vpV5gIqyXqIAAAAC/peach-cat-hug.gif",
-    "https://media.tenor.com/FzqKvxsIcnsAAAAC/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/eAL7RnwQb9AAAAAC/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/4Beyond2TdfkAAAAC/peach-goma-peach-and-goma.gif",
-    "https://media.tenor.com/lf7Rd-1Y1R0AAAAC/peach-and-goma-peach-goma.gif",
+    "https://i.imgur.com/K9mQ6nN.gif",
+    "https://i.imgur.com/W5VqG0d.gif",
+    "https://i.imgur.com/PnlBScJ.gif",
+    "https://i.imgur.com/n2uRq0D.gif",
 ]
 
 

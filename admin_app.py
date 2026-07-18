@@ -61,6 +61,7 @@ class AdminApp(ctk.CTk):
             ("players", "🎮 Players RNG"),
             ("seasons", "🏆 Seasons"),
             ("confessions", "💌 Confessions"),
+            ("messages", "💬 Tin nhắn"),
             ("backup", "💾 Backup"),
             ("logs", "📋 Logs"),
             ("config", "⚙️ Config"),
@@ -139,6 +140,7 @@ class AdminApp(ctk.CTk):
             "players": ("🎮 Players RNG", self.build_players),
             "seasons": ("🏆 Seasons", self.build_seasons),
             "confessions": ("💌 Confessions", self.build_confessions),
+            "messages": ("💬 Tin nhắn", self.build_messages),
             "backup": ("💾 Backup & Restore", self.build_backup),
             "logs": ("📋 Logs hệ thống", self.build_logs),
             "config": ("⚙️ Config", self.build_config),
@@ -224,6 +226,13 @@ class AdminApp(ctk.CTk):
         footer.pack(fill="x", padx=5, pady=10)
         ctk.CTkLabel(footer, text=f"🕐 Cập nhật: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}",
                      font=("", 11), text_color="gray").pack(side="right", padx=10)
+
+        # Auto refresh dashboard mỗi 10 giây
+        self.after(10000, self._auto_refresh_dashboard)
+
+    def _auto_refresh_dashboard(self):
+        if self.current_tab == "dashboard":
+            self.refresh_current()
 
     # ==========================================
     # PROFILES
@@ -612,6 +621,66 @@ class AdminApp(ctk.CTk):
             if result.get("ok"):
                 self.load_confessions()
                 messagebox.showinfo("✅", f"Đã xóa confession #{cid}")
+
+    # ==========================================
+    # MESSAGES (nhangui)
+    # ==========================================
+    def build_messages(self):
+        ctrl = ctk.CTkFrame(self.tab_frame, fg_color="transparent")
+        ctrl.pack(fill="x", padx=5, pady=5)
+
+        self.msg_limit = ctk.CTkEntry(ctrl, placeholder_text="Số lượng (mặc định 50)", width=120)
+        self.msg_limit.insert(0, "50")
+        self.msg_limit.pack(side="left", padx=5)
+        ctk.CTkButton(ctrl, text="Tải", width=70, command=self.load_messages).pack(side="left", padx=5)
+
+        self.msg_count = ctk.CTkLabel(ctrl, text="", font=("", 12), text_color="gray")
+        self.msg_count.pack(side="right", padx=10)
+
+        self.msg_list = ctk.CTkScrollableFrame(self.tab_frame)
+        self.msg_list.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self.load_messages()
+
+    def load_messages(self):
+        for w in self.msg_list.winfo_children():
+            w.destroy()
+
+        limit = self.msg_limit.get().strip() or "50"
+        data = self.api(f"/api/messages?limit={limit}")
+
+        if "error" in data:
+            ctk.CTkLabel(self.msg_list, text=f"❌ {data['error']}").pack(pady=20)
+            return
+        if not data:
+            ctk.CTkLabel(self.msg_list, text="Chưa có tin nhắn nào.", font=("", 13)).pack(pady=20)
+            self.msg_count.configure(text="0")
+            return
+
+        self.msg_count.configure(text=f"{len(data)} tin nhắn")
+
+        for m in data:
+            mid = m.get("id")
+            sender_discord = m.get("sender_id_discord") or {}
+            receiver_discord = m.get("receiver_id_discord") or {}
+            sender_name = sender_discord.get("username") or f"User {m.get('sender_id')}"
+            receiver_name = receiver_discord.get("username") or f"User {m.get('receiver_id')}"
+            content = m.get("content", "")
+            an_danh = m.get("an_danh", 1)
+            created = m.get("created_at", "N/A")[:16]
+
+            card = ctk.CTkFrame(self.msg_list, corner_radius=6)
+            card.pack(fill="x", padx=5, pady=3)
+
+            header = ctk.CTkFrame(card, fg_color="transparent")
+            header.pack(fill="x", padx=10, pady=(8, 2))
+            ctk.CTkLabel(header, text=f"#{mid} • {sender_name} → {receiver_name}", font=("", 12, "bold")).pack(side="left")
+            label_suffix = f"{'Ẩn danh' if an_danh else 'Công khai'} | {created}"
+            ctk.CTkLabel(header, text=label_suffix, font=("", 10), text_color="gray").pack(side="right")
+
+            preview = content[:200] + ("..." if len(content) > 200 else "")
+            ctk.CTkLabel(card, text=preview, font=("", 11), wraplength=700, justify="left",
+                         fg_color="#1E1E1E", corner_radius=4).pack(fill="x", padx=10, pady=5)
 
     # ==========================================
     # BACKUP & RESTORE

@@ -4,6 +4,7 @@ Royal City Admin API - Chay tren VPS cung bot
 from flask import Flask, jsonify, request
 import sqlite3, os, json, requests, shutil
 from datetime import datetime
+import re
 
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -12,6 +13,18 @@ CONFIG_PATH = os.path.join(BASE_DIR, "config", "config.json")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 ROLES_PATH = os.path.join(BASE_DIR, "data", "roles.json")
+MEMBER_IDS_PATH = os.path.join(BASE_DIR, "assets", "member_ids.txt")
+
+
+def get_guild_member_ids() -> set:
+    """Đọc danh sách member ID từ file bot ghi"""
+    try:
+        if os.path.exists(MEMBER_IDS_PATH):
+            with open(MEMBER_IDS_PATH) as f:
+                return {int(line.strip()) for line in f if line.strip().isdigit()}
+    except:
+        pass
+    return set()
 
 # === Discord API (khong can token, public user data) ===
 DISCORD_API = "https://discord.com/api/v10"

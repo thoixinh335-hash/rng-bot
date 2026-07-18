@@ -3,7 +3,7 @@ import sys
 import logging
 from dotenv import load_dotenv
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from database.database import DatabaseManager
 from services.config_service import ConfigService
@@ -68,6 +68,30 @@ class RNGBot(commands.Bot):
         self.announcement_service = AnnouncementService(self)
         self.leaderboard_service = LeaderboardService(self.db_manager)
         self.season_service = SeasonService(self.db_manager)
+
+        # Background task: ghi danh sách member ID cho Admin Panel
+        self.sync_member_ids.start()
+
+    @tasks.loop(minutes=5)
+    async def sync_member_ids(self):
+        """Ghi danh sách user_id đang trong guild ra file để API đọc"""
+        try:
+            filepath = os.path.join(BASE_DIR, "assets", "member_ids.txt")
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            member_ids = set()
+            for guild in self.guilds:
+                for member in guild.members:
+                    if not member.bot:
+                        member_ids.add(member.id)
+            with open(filepath, "w") as f:
+                for uid in sorted(member_ids):
+                    f.write(f"{uid}\n")
+        except Exception as e:
+            logger.warning(f"Lỗi sync member IDs: {e}")
+
+    @sync_member_ids.before_loop
+    async def before_sync_member_ids(self):
+        await self.wait_until_ready()
 
     async def setup_hook(self):
         # 1. Khởi tạo schema và các kết nối SQLite an toàn

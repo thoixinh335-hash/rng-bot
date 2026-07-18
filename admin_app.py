@@ -113,13 +113,13 @@ class AdminApp(ctk.CTk):
         url = f"{API_URL}{path}"
         try:
             if method == "GET":
-                return requests.get(url, timeout=30).json()
+                return requests.get(url, timeout=60).json()
             elif method == "PUT":
-                return requests.put(url, json=data, timeout=30).json()
+                return requests.put(url, json=data, timeout=60).json()
             elif method == "DELETE":
-                return requests.delete(url, timeout=30).json()
+                return requests.delete(url, timeout=60).json()
             elif method == "POST":
-                return requests.post(url, json=data, timeout=30).json()
+                return requests.post(url, json=data, timeout=60).json()
         except Exception as e:
             return {"error": str(e)}
 
@@ -280,7 +280,6 @@ class AdminApp(ctk.CTk):
             spouse = row.get("spouse_id")
             love = row.get("love_points", 0)
             status = row.get("status", "")
-            discord = row.get("discord", {})
 
             card = ctk.CTkFrame(self.profile_list, corner_radius=8)
             card.pack(fill="x", padx=5, pady=4)
@@ -290,7 +289,9 @@ class AdminApp(ctk.CTk):
             avatar_frame.pack(side="left", padx=10, pady=8)
             avatar_frame.pack_propagate(False)
 
-            avatar_url = discord.get("avatar_url")
+            discord_data = row.get("discord") or {}
+            in_guild = row.get("in_guild", True)
+            avatar_url = discord_data.get("avatar_url")
             if avatar_url:
                 avatar_img = load_avatar(avatar_url)
                 if avatar_img:
@@ -304,8 +305,12 @@ class AdminApp(ctk.CTk):
             info_frame = ctk.CTkFrame(card, fg_color="transparent")
             info_frame.pack(side="left", fill="both", expand=True, padx=5, pady=8)
 
-            username = discord.get("username") if discord else f"User {uid}"
-            ctk.CTkLabel(info_frame, text=f"#{pid:03d} • {username}", font=("", 14, "bold")).pack(anchor="w")
+            username = discord_data.get("username") or row.get("discord_user", {}).get("username") or f"User {uid}"
+            name_text = f"#{pid:03d} • {username}"
+            if not in_guild:
+                name_text += "  🔴 OUT"
+            ctk.CTkLabel(info_frame, text=name_text, font=("", 14, "bold"),
+                         text_color="#E74C3C" if not in_guild else None).pack(anchor="w")
             ctk.CTkLabel(info_frame, text=f"ID: {uid} | {gender} | 🎂 {bday}", font=("Consolas", 11), text_color="gray").pack(anchor="w")
 
             sub = ctk.CTkFrame(info_frame, fg_color="transparent")
@@ -336,8 +341,8 @@ class AdminApp(ctk.CTk):
 
         h = ctk.CTkFrame(dialog, fg_color="transparent")
         h.pack(fill="x", padx=15, pady=(15, 10))
-        discord = row.get("discord_user", {}) or row.get("discord", {})
-        name = discord.get("username") or f"User {row.get('user_id')}"
+        discord_data = row.get("discord_user") or {}
+        name = discord_data.get("username") or f"User {row.get('user_id')}"
         ctk.CTkLabel(h, text=f"✏️ #{pid:03d} • {name}", font=("", 16, "bold")).pack(side="left")
 
         form = ctk.CTkScrollableFrame(dialog, height=300)
@@ -451,12 +456,12 @@ class AdminApp(ctk.CTk):
             lucky = p.get("lucky", 0)
             total_rolls = p.get("total_rolls", 0)
             coll_count = p.get("collection_count", 0)
-            discord = p.get("discord", {})
+            discord_data = p.get("discord") or {}
 
             card = ctk.CTkFrame(self.player_list, corner_radius=6)
             card.pack(fill="x", padx=5, pady=2)
 
-            disp_name = discord.get("username") or username
+            disp_name = discord_data.get("username") or username
             ctk.CTkLabel(card, text=str(uid), font=("Consolas", 11), width=180).pack(side="left", padx=5)
             ctk.CTkLabel(card, text=disp_name[:20], font=("", 11), width=150).pack(side="left")
             ctk.CTkLabel(card, text=current_role[:25], font=("", 11), width=200).pack(side="left")
@@ -568,8 +573,8 @@ class AdminApp(ctk.CTk):
             uid = c.get("user_id")
             content = c.get("content", "")
             created = c.get("created_at", "N/A")[:16]
-            discord = c.get("discord", {})
-            username = discord.get("username") if discord else f"User {uid}"
+            discord_data = c.get("discord") or {}
+            username = discord_data.get("username") if discord_data else f"User {uid}"
 
             card = ctk.CTkFrame(self.conf_list, corner_radius=6)
             card.pack(fill="x", padx=5, pady=3)

@@ -366,9 +366,6 @@ class ServerProfileCog(commands.Cog):
             search = content[4:].strip() if content.startswith("!so ") else (None if content == "!so" else content[3:].strip())
             await self.execute_hoso_view(message, search)
 
-        if content == "!vohuy":
-            await self.execute_hoso_view(message, search="9")
-
     async def execute_hoso_view(self, message: discord.Message, search: str = None):
         guild = message.guild
         target_user = None

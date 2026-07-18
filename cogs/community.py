@@ -96,11 +96,11 @@ class NhangReplyModal(discord.ui.Modal, title="💬 Trả lời tin nhắn"):
         self.original_message = original_message
 
     async def on_submit(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        sender = guild.get_member(self.sender_id) if guild else None
-        if not sender and guild:
+        # Lấy sender từ bot (không cần guild, vì reply từ DM)
+        sender = interaction.client.get_user(self.sender_id)
+        if not sender:
             try:
-                sender = await guild.fetch_member(self.sender_id)
+                sender = await interaction.client.fetch_user(self.sender_id)
             except:
                 sender = None
 

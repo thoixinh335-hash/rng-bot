@@ -97,8 +97,8 @@ class NhangReplyModal(discord.ui.Modal, title="💬 Trả lời tin nhắn"):
 
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
-        sender = guild.get_member(self.sender_id)
-        if not sender:
+        sender = guild.get_member(self.sender_id) if guild else None
+        if not sender and guild:
             try:
                 sender = await guild.fetch_member(self.sender_id)
             except:

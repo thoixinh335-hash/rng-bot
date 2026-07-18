@@ -15,25 +15,26 @@ GENDER_OPTIONS = [
     {"label": "Khác 💜", "value": "khac", "gender": "Bí mật 🤫"},
 ]
 
-# Game + Role ID tương ứng — emoji_id là ID Discord của custom emoji trong server
+# Game + Role ID tương ứng — emoji_name + emoji_id cho custom emoji trong server
 GAME_OPTIONS = [
-    {"label": "Không chơi game", "value": "none", "emoji_id": None, "role_id": 1503825065970499698, "no_game": True},
-    {"label": "Liên Quân Mobile", "value": "lienquan", "emoji_id": 1524696458992029807, "role_id": 1503825048039981208},
-    {"label": "Valorant", "value": "valorant", "emoji_id": 1524695522869379072, "role_id": 1503825041262116966},
-    {"label": "Roblox", "value": "roblox", "emoji_id": 1524695525968973825, "role_id": 1503825045045252136},
-    {"label": "Minecraft", "value": "minecraft", "emoji_id": 1524695638833631242, "role_id": 1503825052108587142},
-    {"label": "TFT", "value": "tft", "emoji_id": 1524695534076428429, "role_id": 1503825055832870963},
-    {"label": "Free Fire", "value": "freefire", "emoji_id": 1524695536547008594, "role_id": 1503825059460939877},
-    {"label": "CS:GO / CS2", "value": "csgo", "emoji_id": 1524695542087815180, "role_id": 1503825062921240667},
-    {"label": "Game khác...", "value": "other", "emoji_id": None, "role_id": 1503825065970499698, "no_game": True},
+    {"label": "Không chơi game", "value": "none", "emoji_name": None, "emoji_id": None, "role_id": 1503825065970499698, "no_game": True},
+    {"label": "Liên Quân Mobile", "value": "lienquan", "emoji_name": "lienquan", "emoji_id": 1524696458992029807, "role_id": 1503825048039981208},
+    {"label": "Valorant", "value": "valorant", "emoji_name": "valorant", "emoji_id": 1524695522869379072, "role_id": 1503825041262116966},
+    {"label": "Roblox", "value": "roblox", "emoji_name": "roblox", "emoji_id": 1524695525968973825, "role_id": 1503825045045252136},
+    {"label": "Minecraft", "value": "minecraft", "emoji_name": "minecraft", "emoji_id": 1524695638833631242, "role_id": 1503825052108587142},
+    {"label": "TFT", "value": "tft", "emoji_name": "tft", "emoji_id": 1524695534076428429, "role_id": 1503825055832870963},
+    {"label": "Free Fire", "value": "freefire", "emoji_name": "freefire", "emoji_id": 1524695536547008594, "role_id": 1503825059460939877},
+    {"label": "CS:GO / CS2", "value": "csgo", "emoji_name": "csgo", "emoji_id": 1524695542087815180, "role_id": 1503825062921240667},
+    {"label": "Game khác...", "value": "other", "emoji_name": None, "emoji_id": None, "role_id": 1503825065970499698, "no_game": True},
 ]
 
 
 def get_emoji(game: dict):
-    """Tạo PartialEmoji từ emoji_id nếu có"""
+    """Tạo PartialEmoji từ emoji_name + emoji_id"""
+    ename = game.get("emoji_name")
     eid = game.get("emoji_id")
-    if eid:
-        return discord.PartialEmoji(id=eid)
+    if ename and eid:
+        return discord.PartialEmoji(name=ename, id=eid)
     return None
 
 

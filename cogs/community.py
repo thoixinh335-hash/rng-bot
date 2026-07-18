@@ -168,8 +168,8 @@ class ConfessionModal(discord.ui.Modal, title="Gửi Confession Ẩn Danh"):
         try:
             async with await self.cog.bot.db_manager.connect() as conn:
                 cursor = await conn.execute(
-                    "INSERT INTO confessions (user_id, content, created_at) VALUES (?, ?, ?)",
-                    (interaction.user.id, self.content.value, datetime.utcnow().isoformat())
+                    "INSERT INTO confessions (content, created_at) VALUES (?, ?)",
+                    (self.content.value, datetime.utcnow().isoformat())
                 )
                 await conn.commit()
                 confession_id = cursor.lastrowid
@@ -228,6 +228,11 @@ class CommunityCog(commands.Cog):
                     created_at TEXT
                 )
             """)
+            # Migration: thêm cột user_id nếu chưa có (khi restore từ backup cũ)
+            try:
+                await conn.execute("ALTER TABLE confessions ADD COLUMN user_id INTEGER")
+            except:
+                pass
             await conn.commit()
 
     @app_commands.command(name="confess", description="Mở bảng gửi tâm sự ẩn danh")

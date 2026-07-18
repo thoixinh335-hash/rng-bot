@@ -744,12 +744,20 @@ class ServerProfileCog(commands.Cog):
                 return await interaction.followup.send("❌ Cậu cần cập nhật giới tính thành `Nam` hoặc `Nữ` trong hồ sơ mới ghép đôi được nha! Dùng `/sua_hoso gioi_tinh:Nam` nhé.", ephemeral=True)
 
             opposite = "Nữ" if "nam" in my_gender.lower() else "Nam"
-            # Chỉ ghép với người có giới tính Nam hoặc Nữ rõ ràng
+            # Chỉ ghép với người còn trong server
             async with conn.execute(
-                "SELECT user_id, gender FROM royal_profiles WHERE spouse_id IS NULL AND user_id != ? AND LOWER(gender) LIKE ? ORDER BY RANDOM() LIMIT 1",
+                "SELECT user_id, gender FROM royal_profiles WHERE spouse_id IS NULL AND user_id != ? AND LOWER(gender) LIKE ? ORDER BY RANDOM() LIMIT 50",
                 (interaction.user.id, f"%{opposite.lower()}%")
             ) as cursor:
-                match_row = await cursor.fetchone()
+                candidates = await cursor.fetchall()
+
+        # Lọc user còn trong guild
+        guild_member_ids = {m.id for m in interaction.guild.members}
+        match_row = None
+        for row in candidates:
+            if row[0] in guild_member_ids:
+                match_row = row
+                break
 
         if not match_row:
             return await interaction.followup.send("😢 Hiện tại không tìm thấy cư dân độc thân nào phù hợp... Hẹn cậu lúc khác nhé!", ephemeral=True)

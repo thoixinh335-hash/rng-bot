@@ -137,16 +137,13 @@ def update_profile(pid):
     if old_row and old_row[0] and old_row[0] != new_spouse_id:
         db.execute("UPDATE royal_profiles SET spouse_id=NULL, marriage_date=NULL WHERE user_id=?", (old_row[0],))
 
-    # 2. Nếu có spouse mới, cập nhật cả 2 chiều
+    # 2. Nếu có spouse mới, cập nhật cả 2 chiều - Không update bg_url (giữ nguyên)
     if new_spouse_id:
-        # Cập nhật hồ sơ hiện tại
         db.execute("""UPDATE royal_profiles SET gender=?, birthday=?, bio=?, status=?, spouse_id=?, love_points=?, marriage_date=COALESCE(marriage_date, datetime('now')) WHERE id=?""",
                   (data.get("gender"), data.get("birthday"), data.get("bio"), data.get("status"),
                    new_spouse_id, data.get("love_points"), pid))
-        # Cập nhật ngược lại cho spouse
         db.execute("UPDATE royal_profiles SET spouse_id=?, marriage_date=COALESCE(marriage_date, datetime('now')) WHERE user_id=?", (current_uid, new_spouse_id))
     else:
-        # Xóa spouse - chỉ update hồ sơ hiện tại
         db.execute("UPDATE royal_profiles SET gender=?, birthday=?, bio=?, status=?, spouse_id=NULL, love_points=? WHERE id=?",
                   (data.get("gender"), data.get("birthday"), data.get("bio"), data.get("status"),
                    data.get("love_points"), pid))

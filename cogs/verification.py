@@ -3,6 +3,8 @@ from discord.ext import commands
 from datetime import datetime
 import logging
 import random
+import os
+import glob
 
 logger = logging.getLogger("rng_bot")
 
@@ -35,6 +37,20 @@ CHILL_IMAGES = [
     "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=400&fit=crop",
     "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&h=400&fit=crop",
 ]
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WELCOME_GIF_DIR = os.path.join(BASE_DIR, "assets", "welcome")
+
+
+def get_random_welcome_gif() -> discord.File | None:
+    """Lấy 1 file GIF ngẫu nhiên từ assets/welcome/"""
+    try:
+        gifs = glob.glob(os.path.join(WELCOME_GIF_DIR, "*.gif"))
+        if gifs:
+            return discord.File(random.choice(gifs), filename="welcome.gif")
+    except Exception as e:
+        logger.warning(f"Lỗi đọc GIF: {e}")
+    return None
 
 
 
@@ -172,9 +188,13 @@ class VerificationStepView(discord.ui.View):
                     ),
                     color=discord.Color.from_rgb(255, 105, 180)
                 )
-                import random
-                announce_embed.set_image(url=random.choice(CHILL_IMAGES))
-                await announce_channel.send(embed=announce_embed)
+                # Gửi kèm file GIF nếu có
+                gif_file = get_random_welcome_gif()
+                if gif_file:
+                    announce_embed.set_image(url="attachment://welcome.gif")
+                    await announce_channel.send(embed=announce_embed, file=gif_file)
+                else:
+                    await announce_channel.send(embed=announce_embed)
         except Exception as e:
             logger.error(f"Lỗi gửi thông báo xác minh: {e}")
 

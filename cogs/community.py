@@ -18,7 +18,7 @@ class ConfessionReplyModal(discord.ui.Modal, title="💬 Gửi Reply cho Confess
         style=discord.TextStyle.paragraph,
         placeholder="Viết lời nhắn gửi đến người đã gửi confession...",
         required=True,
-        max_length=1500
+        max_length=1500 
     )
 
     def __init__(self, confession_id: int, target_user_id: int, original_content: str):
@@ -185,12 +185,7 @@ class ConfessionModal(discord.ui.Modal, title="Gửi Confession Ẩn Danh"):
         embed.set_footer(text="Góc ẩn danh • Royal City 🌃")
 
         if channel:
-            view = ConfessionReplyView(
-                confession_id=confession_id,
-                target_user_id=interaction.user.id,
-                original_content=self.content.value
-            ) if confession_id else None
-            await channel.send(embed=embed, view=view)
+            await channel.send(embed=embed)
             # Gửi thêm vào kênh cũ
             channel_old = interaction.guild.get_channel(CONFESSION_CHANNEL_ID_OLD)
             if channel_old and channel_old != channel:

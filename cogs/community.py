@@ -118,6 +118,18 @@ class NhangReplyModal(discord.ui.Modal, title="💬 Trả lời tin nhắn"):
 
         embed.set_footer(text="Reply tự động • Royal City 🌃")
 
+        # Lưu reply vào database
+        try:
+            db = interaction.client.db_manager
+            async with await db.connect() as conn:
+                await conn.execute(
+                    "INSERT INTO royal_messages (sender_id, receiver_id, content, an_danh, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (interaction.user.id, self.sender_id, self.reply_text.value, 1 if self.an_danh else 0, datetime.utcnow().isoformat())
+                )
+                await conn.commit()
+        except Exception as e:
+            logger.error(f"Lỗi lưu reply: {e}")
+
         if sender:
             try:
                 # Gửi kèm nút reply để người đó reply lại tiếp

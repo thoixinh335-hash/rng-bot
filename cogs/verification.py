@@ -173,7 +173,32 @@ class VerificationLandingView(discord.ui.View):
             ephemeral=True
         )
 
+class VerificationCog(commands.Cog):
+    """Cog quản lý xác minh thành viên"""
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        # Đăng ký persistent view cho landing page
+        self.bot.add_view(VerificationLandingView())
 
+    @app_commands.command(name="setup_verification", description="Khởi tạo bảng nút bấm xác minh tuỳ chỉnh nội dung (Chỉ Admin)")
+    async def setup_verification(self, interaction: discord.Interaction):
+        if interaction.user.id != ADMIN_ID:
+            await interaction.response.send_message("❌ Chỉ dành cho Admin tối cao!", ephemeral=True)
+            return
+
+        view = VerificationLandingView()
+        embed = discord.Embed(
+            title="🏰 CHÀO MỪNG ĐẾN VỚI ROYAL CITY 🏰",
+            description=(
+                "Chào mừng cư dân mới! Để khám phá và trải nghiệm vương quốc Royal City, "
+                "cậu vui lòng thực hiện **xác minh danh tính** trước khi bắt đầu hành trình nhé!\n\n"
+                "📝 Chỉ mất **30 giây** để hoàn thành 2 bước xác minh.\n"
+                "🎁 Sau khi xác minh, cậu sẽ nhận được **hồ sơ cư dân** và các quyền lợi đặc biệt!"
+            ),
+            color=discord.Color.from_rgb(88, 101, 242)
+        )
+        embed.set_footer(text="Hệ thống xác minh tự động Royal City 🏙️")
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 async def setup(bot):

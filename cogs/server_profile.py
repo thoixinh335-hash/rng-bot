@@ -413,13 +413,14 @@ class ServerProfileCog(commands.Cog):
                     await message.channel.send(f"❌ Mã số hồ sơ `{display_id}` chưa tồn tại!")
                 return
 
-            # Kiểm tra người dùng có còn trong server không (tránh hiển thị ghost)
-            stored_uid_in_guild = guild.get_member(stored_user_id) is not None
-            if not stored_uid_in_guild and (not target_user or target_user.id != message.author.id):
-                await message.channel.send(f"❌ Cư dân này đã rời khỏi **Royal City** từ lâu. Hồ sơ đã được niêm phong.")
-                return
-
             p_id, bio, gender, birthday, location, bg_url, stored_user_id, spouse_id, love_pts, social, status_text = row
+
+            # Kiểm tra người dùng có còn trong server không (tránh hiển thị ghost)
+            if not target_user or target_user.id != message.author.id:
+                stored_uid_in_guild = guild.get_member(stored_user_id) is not None
+                if not stored_uid_in_guild:
+                    await message.channel.send(f"❌ Cư dân này đã rời khỏi **Royal City** từ lâu. Hồ sơ đã được niêm phong.")
+                    return
 
             try:
                 display_user = guild.get_member(stored_user_id) or await self.bot.fetch_user(stored_user_id)
@@ -433,7 +434,7 @@ class ServerProfileCog(commands.Cog):
             if spouse_id:
                 # Lấy tên Discord thật của tri kỷ (để tìm kiếm được)
                 spouse_member = guild.get_member(spouse_id)
-                spouse_name = spouse_member.name if spouse_member else f"ID:{spouse_id}"
+                spouse_name = spouse_member.display_name if spouse_member else f"ID:{spouse_id} (đã rời)"
                 pts_display = f"`💕 {love_pts or 0} điểm`"
                 spouse_text = f"**{spouse_name}** {pts_display}"
             else:

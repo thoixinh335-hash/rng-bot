@@ -245,6 +245,17 @@ class CommunityCog(commands.Cog):
         if user == interaction.user:
             return await interaction.response.send_message("⚠️ Cậu không thể tự nhắn cho chính mình đâu!", ephemeral=True)
 
+        # Lưu vào database
+        try:
+            async with await self.bot.db_manager.connect() as conn:
+                await conn.execute(
+                    "INSERT INTO confessions (user_id, content, created_at) VALUES (?, ?, ?)",
+                    (interaction.user.id, f"[Nhắn gửi] {message} (→ {user.id})", datetime.utcnow().isoformat())
+                )
+                await conn.commit()
+        except Exception as e:
+            logger.error(f"Lỗi lưu nhangui: {e}")
+
         embed = discord.Embed(
             title="💌 BẠN CÓ MỘT LỜI NHẮN YÊU THƯƠNG!",
             description=f"```{message}```",

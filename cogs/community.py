@@ -6,7 +6,7 @@ import asyncio
 import logging
 
 logger = logging.getLogger("rng_bot")
-CONFESSION_CHANNEL_ID = 1523960669324574750
+CONFESSION_CHANNEL_ID = 1503825245671395368
 
 # ==========================================
 # MODAL REPLY CHO CONFESSION (kênh chung)

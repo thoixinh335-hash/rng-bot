@@ -134,7 +134,7 @@ class VerificationStepView(discord.ui.View):
                     except discord.Forbidden:
                         pass
 
-        # Tạo hồ sơ với giới tính đã chọn
+        # Tạo/cập nhật hồ sơ với giới tính đã chọn
         profile_id = None
         try:
             async with await self.bot.db_manager.connect() as conn:
@@ -142,6 +142,13 @@ class VerificationStepView(discord.ui.View):
                     exists = await cursor.fetchone()
                 if exists:
                     profile_id = exists[0]
+                    # Cập nhật giới tính mới
+                    await conn.execute(
+                        "UPDATE royal_profiles SET gender = ?, updated_at = ? WHERE user_id = ?",
+                        (self.chosen_gender["gender"], datetime.utcnow().isoformat(), self.member.id)
+                    )
+                    await conn.commit()
+                    logger.info(f"✅ Đã cập nhật hồ sơ #{profile_id} cho {self.member.name}")
                 else:
                     now = datetime.utcnow().isoformat()
                     cursor = await conn.execute(
@@ -150,7 +157,7 @@ class VerificationStepView(discord.ui.View):
                     )
                     await conn.commit()
                     profile_id = cursor.lastrowid
-                    logger.info(f"✅ Đã tự tạo hồ sơ #{profile_id} cho {self.member.name}")
+                    logger.info(f"✅ Đã tạo hồ sơ #{profile_id} cho {self.member.name}")
         except Exception as e:
             logger.error(f"Lỗi tạo hồ sơ: {e}")
 

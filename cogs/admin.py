@@ -110,6 +110,62 @@ class AdminCog(commands.Cog):
             embed.add_field(name=k, value=f"`{v}`", inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @admin_group.command(name="cleanup", description="Dọn dẹp toàn bộ dữ liệu người dùng đã rời server nhưng chưa được xử lý.")
+    async def cleanup_left_members(self, interaction: discord.Interaction):
+        if not self.is_owner(interaction):
+            await interaction.response.send_message("❌ Từ chối thực thi.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        guild = interaction.guild
+        member_ids = {m.id for m in guild.members}
+
+        async with await self.bot.db_manager.connect() as conn:
+            # Lấy tất cả user_id từ players
+            async with conn.execute("SELECT user_id FROM players") as cursor:
+                all_players = await cursor.fetchall()
+
+            removed_count = 0
+            freed_marriages = 0
+            for (uid,) in all_players:
+                if uid not in member_ids:
+                    # Xử lý spouse trước
+                    async with conn.execute(
+                        "SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (uid,)
+                    ) as cursor:
+                        row = await cursor.fetchone()
+                    if row and row[0]:
+                        await conn.execute(
+                            "UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL, "
+                            "love_points = 0 WHERE user_id = ?",
+                            (row[0],),
+                        )
+                        freed_marriages += 1
+
+                    # Xóa social data (giữ nguyên players/collections/history cho RNG)
+                    await conn.execute("DELETE FROM royal_profiles WHERE user_id = ?", (uid,))
+                    await conn.execute("DELETE FROM royal_afk WHERE user_id = ?", (uid,))
+                    await conn.execute("DELETE FROM royal_reminders WHERE user_id = ?", (uid,))
+                    await conn.execute("DELETE FROM royal_bans WHERE user_id = ?", (uid,))
+                    await conn.execute("DELETE FROM roll_inventory WHERE user_id = ?", (uid,))
+                    await conn.execute("DELETE FROM daily_missions WHERE user_id = ?", (uid,))
+
+                    removed_count += 1
+
+            await conn.commit()
+
+        embed = discord.Embed(
+            title="🧹 DỌN DẸP DỮ LIỆU GHOST",
+            description=(
+                f"✅ **Hoàn tất!**\n\n"
+                f"🗑️ Đã xử lý: **{removed_count}** người dùng đã rời server\n"
+                f"💔 Đã giải phóng: **{freed_marriages}** cuộc hôn nhân\n\n"
+                f"*Dữ liệu RNG (players, collections, history) vẫn được giữ nguyên.*"
+            ),
+            color=discord.Color.green(),
+        )
+        await interaction.followup.send(embed=embed)
+
     @admin_group.command(name="checkperms", description="Kiểm tra quyền của bot (Manage Roles, hierarchy).")
     async def check_perms(self, interaction: discord.Interaction):
         if not self.is_owner(interaction):

@@ -290,6 +290,49 @@ class ServerProfileCog(commands.Cog):
                     except Exception: pass
 
     @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        """Khi thành viên rời server: giữ data RNG, xóa social dependencies, giải phóng spouse"""
+        if member.bot:
+            return
+        async with await self.bot.db_manager.connect() as conn:
+            # 1. Giải phóng spouse nếu người này đã kết hôn
+            async with conn.execute(
+                "SELECT spouse_id FROM royal_profiles WHERE user_id = ?", (member.id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+            if row and row[0]:
+                spouse_id = row[0]
+                await conn.execute(
+                    "UPDATE royal_profiles SET spouse_id = NULL, marriage_date = NULL, "
+                    "love_points = 0, divorce_pending = 0, divorce_time = NULL "
+                    "WHERE user_id = ?",
+                    (spouse_id,),
+                )
+                # DM thông báo cho người ở lại
+                for guild in self.bot.guilds:
+                    spouse = guild.get_member(spouse_id)
+                    if spouse:
+                        try:
+                            await spouse.send(
+                                f"💔 **{member.name}** đã rời khỏi **Royal City**.\n"
+                                "Cuộc hôn nhân của bạn đã kết thúc theo quy định."
+                            )
+                        except:
+                            pass
+                        break
+
+            # 2. Xóa social data (giữ nguyên data RNG: players, collections, history)
+            await conn.execute("DELETE FROM royal_profiles WHERE user_id = ?", (member.id,))
+            await conn.execute("DELETE FROM royal_afk WHERE user_id = ?", (member.id,))
+            await conn.execute("DELETE FROM royal_reminders WHERE user_id = ?", (member.id,))
+            await conn.execute("DELETE FROM royal_bans WHERE user_id = ?", (member.id,))
+            await conn.execute("DELETE FROM roll_inventory WHERE user_id = ?", (member.id,))
+            await conn.execute("DELETE FROM daily_missions WHERE user_id = ?", (member.id,))
+            await conn.commit()
+
+            logger.info(f"🧹 Đã dọn dẹy data social cho {member.name} ({member.id}) - rời server")
+
+    @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild: return
         content = message.content.strip()
@@ -365,9 +408,15 @@ class ServerProfileCog(commands.Cog):
                         await message.channel.send("❌ Cậu chưa có hồ sơ cư dân! Hãy vào kênh xác minh và hoàn thành bài test để được cấp hồ sơ tự động nhé.")
                     else:
                         await message.channel.send("❌ Thành viên này chưa được đăng ký sổ cư dân!")
-                else: 
+                else:
                     display_id = f"#{profile_id:03d}" if profile_id is not None else search
                     await message.channel.send(f"❌ Mã số hồ sơ `{display_id}` chưa tồn tại!")
+                return
+
+            # Kiểm tra người dùng có còn trong server không (tránh hiển thị ghost)
+            stored_uid_in_guild = guild.get_member(stored_user_id) is not None
+            if not stored_uid_in_guild and (not target_user or target_user.id != message.author.id):
+                await message.channel.send(f"❌ Cư dân này đã rời khỏi **Royal City** từ lâu. Hồ sơ đã được niêm phong.")
                 return
 
             p_id, bio, gender, birthday, location, bg_url, stored_user_id, spouse_id, love_pts, social, status_text = row

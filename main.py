@@ -70,7 +70,7 @@ class RNGBot(commands.Bot):
         self.leaderboard_service = LeaderboardService(self.db_manager)
         self.season_service = SeasonService(self.db_manager)
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=30)
     async def sync_member_ids(self):
         """Ghi danh sách user_id + tên đang trong guild ra file để API đọc"""
         try:

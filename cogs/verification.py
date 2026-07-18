@@ -15,23 +15,26 @@ GENDER_OPTIONS = [
     {"label": "Khác 💜", "value": "khac", "gender": "Bí mật 🤫"},
 ]
 
-# Game + Role ID tương ứng — dùng emoji text đơn giản, không dùng custom <:name:id>
+# Game + Role ID tương ứng — emoji_id là ID Discord của custom emoji trong server
 GAME_OPTIONS = [
-    {"label": "Không chơi game", "value": "none", "emoji": "🚫", "role_id": 1503825065970499698, "no_game": True},
-    {"label": "Liên Quân Mobile", "value": "lienquan", "emoji": "🗡️", "role_id": 1503825048039981208},
-    {"label": "Valorant", "value": "valorant", "emoji": "🎯", "role_id": 1503825041262116966},
-    {"label": "Roblox", "value": "roblox", "emoji": "🧊", "role_id": 1503825045045252136},
-    {"label": "Minecraft", "value": "minecraft", "emoji": "⛏️", "role_id": 1503825052108587142},
-    {"label": "TFT", "value": "tft", "emoji": "♟️", "role_id": 1503825055832870963},
-    {"label": "Free Fire", "value": "freefire", "emoji": "🔫", "role_id": 1503825059460939877},
-    {"label": "CS:GO / CS2", "value": "csgo", "emoji": "💥", "role_id": 1503825062921240667},
-    {"label": "Game khác...", "value": "other", "emoji": "🎮", "role_id": 1503825065970499698, "no_game": True},
+    {"label": "Không chơi game", "value": "none", "emoji_id": None, "role_id": 1503825065970499698, "no_game": True},
+    {"label": "Liên Quân Mobile", "value": "lienquan", "emoji_id": 1524696458992029807, "role_id": 1503825048039981208},
+    {"label": "Valorant", "value": "valorant", "emoji_id": 1524695522869379072, "role_id": 1503825041262116966},
+    {"label": "Roblox", "value": "roblox", "emoji_id": 1524695525968973825, "role_id": 1503825045045252136},
+    {"label": "Minecraft", "value": "minecraft", "emoji_id": 1524695638833631242, "role_id": 1503825052108587142},
+    {"label": "TFT", "value": "tft", "emoji_id": 1524695534076428429, "role_id": 1503825055832870963},
+    {"label": "Free Fire", "value": "freefire", "emoji_id": 1524695536547008594, "role_id": 1503825059460939877},
+    {"label": "CS:GO / CS2", "value": "csgo", "emoji_id": 1524695542087815180, "role_id": 1503825062921240667},
+    {"label": "Game khác...", "value": "other", "emoji_id": None, "role_id": 1503825065970499698, "no_game": True},
 ]
 
 
-def parse_emoji(emoji_str: str):
-    """Chuyển string emoji — nếu là unicode thì trả về luôn, nếu None trả None"""
-    return emoji_str if emoji_str else None
+def get_emoji(game: dict):
+    """Tạo PartialEmoji từ emoji_id nếu có"""
+    eid = game.get("emoji_id")
+    if eid:
+        return discord.PartialEmoji(id=eid)
+    return None
 
 
 class VerificationStepView(discord.ui.View):
@@ -62,15 +65,14 @@ class VerificationStepView(discord.ui.View):
         game_options = [g for g in GAME_OPTIONS if not g.get("no_game")]
         options = []
         for g in game_options:
-            emoji = parse_emoji(g.get("emoji", ""))
-            opt = discord.SelectOption(label=g["label"], value=g["value"], emoji=emoji)
+            opt = discord.SelectOption(label=g["label"], value=g["value"], emoji=get_emoji(g))
             options.append(opt)
         select_menu = discord.ui.Select(
             placeholder="🎮 Bước 2/2: Chọn game bạn chơi (có thể chọn nhiều)!",
             options=options,
             custom_id="verify_step2_game",
             min_values=1,
-            max_values=len(options)  # Cho phép chọn nhiều
+            max_values=len(options)
         )
         select_menu.callback = self.game_callback
         self.add_item(select_menu)

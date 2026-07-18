@@ -28,19 +28,14 @@ GAME_OPTIONS = [
     {"label": "Game khác", "value": "other", "role_id": 1503825065970499698},
 ]
 
-FALLBACK_GIFS = [
-    "https://c.tenor.com/RgCGu7VXsm0AAAAd/peach-goma-hug.gif",
-    "https://c.tenor.com/vpV5gIqyXqIAAAAd/peach-cat-hug.gif",
-    "https://c.tenor.com/4UjE7hXx0TwAAAAd/peach-cat-hug.gif",
-    "https://c.tenor.com/1kQYQW9lG0cAAAAd/peach-goma.gif",
-    "https://c.tenor.com/KTZyYqBZvDgAAAAd/peach-goma.gif",
-    "https://c.tenor.com/CfArykSpBOoAAAAd/peach-goma.gif",
-    "https://c.tenor.com/lf7Rd-1Y1R0AAAAd/peach-and-goma.gif",
-    "https://c.tenor.com/FzqKvxsIcnsAAAAd/peach-goma-peach-and-goma.gif",
+WELCOME_GIFS = [
+    "https://media.tenor.com/vpV5gIqyXqIAAAAC/peach-cat-hug.gif",
+    "https://media.tenor.com/FzqKvxsIcnsAAAAC/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/eAL7RnwQb9AAAAAC/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/4Beyond2TdfkAAAAC/peach-goma-peach-and-goma.gif",
+    "https://media.tenor.com/lf7Rd-1Y1R0AAAAC/peach-and-goma-peach-goma.gif",
 ]
 
-async def get_random_chill_gif() -> str:
-    return random.choice(FALLBACK_GIFS)
 
 
 
@@ -160,7 +155,6 @@ class VerificationStepView(discord.ui.View):
 
         # Gửi thông báo ra kênh chính chúc mừng kèm GIF chill
         try:
-            gif_url = await get_random_chill_gif()
             announce_channel = self.bot.get_channel(1503825245671395368)
             if announce_channel:
                 announce_embed = discord.Embed(
@@ -175,8 +169,7 @@ class VerificationStepView(discord.ui.View):
                     ),
                     color=discord.Color.from_rgb(255, 105, 180)
                 )
-                announce_embed.set_image(url=gif_url)
-                announce_embed.set_footer(text="🏰 Royal City chào đón bạn!")
+                announce_embed.set_image(url=random.choice(WELCOME_GIFS))
                 await announce_channel.send(embed=announce_embed)
         except Exception as e:
             logger.error(f"Lỗi gửi thông báo xác minh: {e}")

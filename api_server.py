@@ -139,10 +139,12 @@ def profiles():
         c.execute("SELECT * FROM royal_profiles ORDER BY id")
     rows = [dict(r) for r in c.fetchall()]
     db.close()
+    member_ids = get_guild_member_ids()
     for row in rows:
         uid = row.get("user_id")
         if uid:
             row["discord"] = get_discord_user(uid)
+            row["in_guild"] = uid in member_ids
     return jsonify(rows)
 
 @app.route("/api/profiles/<int:pid>", methods=["PUT"])

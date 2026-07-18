@@ -69,9 +69,6 @@ class RNGBot(commands.Bot):
         self.leaderboard_service = LeaderboardService(self.db_manager)
         self.season_service = SeasonService(self.db_manager)
 
-        # Background task: ghi danh sách member ID cho Admin Panel
-        self.sync_member_ids.start()
-
     @tasks.loop(minutes=5)
     async def sync_member_ids(self):
         """Ghi danh sách user_id đang trong guild ra file để API đọc"""
@@ -133,6 +130,9 @@ class RNGBot(commands.Bot):
 
         # 4. Không sync ở đây - self.guilds rỗng trước on_ready
         #    Việc sync được chuyển xuống on_ready
+
+        # 5. Khởi động background task sync member IDs
+        self.sync_member_ids.start()
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
         if isinstance(error, discord.app_commands.errors.MissingPermissions):
